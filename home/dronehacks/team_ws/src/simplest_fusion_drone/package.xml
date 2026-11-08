@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>simplest_fusion_drone</name>
+  <version>0.1.0</version>
+  <description>First sensor fusion: a trust gate (camera, tracking, EKF2, heading, image) in front of simplest_square_drone's flight-tested step engine.</description>
+  <maintainer email="noreply@example.com">DroneHacks team</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>px4_msgs</exec_depend>
+  <exec_depend>isaac_ros_visual_slam_interfaces</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>skybeta_flight_interface</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <!-- the two rungs below this one -->
+  <exec_depend>simplest_square_drone</exec_depend>
+  <exec_depend>simplest_listen_drone</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
