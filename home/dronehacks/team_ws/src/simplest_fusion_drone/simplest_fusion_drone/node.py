@@ -35,21 +35,25 @@ IMAGE_EVERY = 6                     # decode every 6th frame: 5 Hz of 30, enough
 
 
 class SimplestFusionDrone(Node):
-    def __init__(self):
-        super().__init__('simplest_fusion_drone')
+    def __init__(self, name='simplest_fusion_drone', make_steps=None):
+        """make_steps(node) -> a step list, for nodes that fly something other than the square
+        (simplest_course_drone builds its steps from the course map). Default: the square."""
+        super().__init__(name)
         cfg = {}
         for name, value in vars(Config()).items():
             self.declare_parameter(name, value, ParameterDescriptor(dynamic_typing=True))
             v = self.get_parameter(name).value
             cfg[name] = (str(v).lower() in ('true', '1')) if isinstance(value, bool) else float(v)
         self.fusion = Fusion(Config(**cfg))
-        self.mission = Mission(STEPS, EngineConfig())
+        self.steps = make_steps(self) if make_steps else STEPS
+        self.mission = Mission(self.steps, EngineConfig())
         self.r = Readings()
         self.offboard = False
         self.landed = self.armed = self.px4 = None
         self.frames = 0
         self.subs = {}
         self.last_status = None
+        self.belief = None
         self.handlers = {
             '/visual_slam/tracking/odometry': self.on_odometry,
             '/visual_slam/status': self.on_vo_status,
@@ -63,11 +67,10 @@ class SimplestFusionDrone(Node):
         assert set(self.handlers) <= set(RELEVANT), 'fusion may only read the relevant subset'
         self.pose_pub = self.create_publisher(PoseStamped, '/skybeta/setpoint/pose', 10)
         self.twist_pub = self.create_publisher(TwistStamped, '/skybeta/setpoint/twist', 10)
-        self.status_pub = self.create_publisher(String, '/simplest_fusion_drone/status', 10)
+        self.status_pub = self.create_publisher(String, '/{}/status'.format(name), 10)
         self.create_timer(1.0, self.discover)
         self.create_timer(0.05, self.tick)                 # 20 Hz, as the square
-        self.get_logger().info('simplest_fusion_drone: {} steps behind a trust gate. Arm, then Position.'
-                               .format(len(STEPS)))
+        self.get_logger().info('{}: {} steps behind a trust gate. Arm, then Position.'.format(name, len(self.steps)))
 
     def now(self):
         return self.get_clock().now().nanoseconds * 1e-9
@@ -129,7 +132,7 @@ class SimplestFusionDrone(Node):
     def tick(self):
         now = self.now()
         flying = self.mission.state != 'WAIT'
-        b = self.fusion.update(now, self.r, flying)
+        b = self.belief = self.fusion.update(now, self.r, flying)
         pose_t = self.r.camera_t if b.pose is not None else None
         cmd = self.mission.step(now, b.pose, pose_t, self.offboard, self.landed, self.armed, b.yaw, self.px4)
         self.publish(cmd)

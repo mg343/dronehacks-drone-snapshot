@@ -98,3 +98,12 @@ def test_coasts_only_while_ekf2_is_healthy():
     assert b.coasting and b.pose == (1.0, 2.0, 0.73), b.words()          # EKF2 minus the gap
     b = f.update(NOW, good(vo_state=2, ekf_xy_valid=False), flying=True)
     assert not b.trusted and b.pose is None and 'ekf2: no valid position' in b.problems
+
+
+def test_coast_starts_when_camera_and_ekf2_vision_drop_together():
+    """Entering the dark tunnel: the image goes dark AND EKF2 stops fusing vision on the same tick.
+    EKF2 dropping vision is expected when the camera is the side that failed; coast, don't stop."""
+    f = Fusion()
+    assert f.update(NOW, good(), flying=True).trusted                 # one good tick sets the gap
+    b = f.update(NOW + 0.05, good(brightness=2.0, vo_state=2, ev_pos=False), flying=True)
+    assert b.coasting and b.trusted and b.pose is not None, b.words()

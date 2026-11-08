@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>simplest_course_drone</name>
+  <version>0.1.0</version>
+  <description>Fly the course from the map: dronehacks_planner's route as a plain step list, flown by simplest_fusion_drone (trust gate, tunnel coast) and simplest_square_drone's engine.</description>
+  <maintainer email="noreply@example.com">DroneHacks team</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>skybeta_flight_interface</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <!-- the rungs below this one -->
+  <exec_depend>dronehacks_planner</exec_depend>
+  <exec_depend>simplest_map_drone</exec_depend>
+  <exec_depend>simplest_fusion_drone</exec_depend>
+  <exec_depend>simplest_square_drone</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

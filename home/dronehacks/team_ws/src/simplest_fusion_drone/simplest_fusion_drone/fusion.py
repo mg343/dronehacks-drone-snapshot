@@ -154,12 +154,13 @@ class Fusion:
             out.append('image: none')
         return out
 
-    def ekf_problems(self, now, r):
+    def ekf_problems(self, now, r, camera_ok=True):
         c, out = self.cfg, []
         if not _fresh(now, r.flags_t, c.other_timeout_s):
             out.append('ekf2: no status flags')
-        elif not r.ev_pos and self.coast_since is None:
-            # while coasting, EKF2 is expected to stop fusing vision: it is the camera that failed
+        elif not r.ev_pos and camera_ok and self.coast_since is None:
+            # EKF2 rejecting vision counts against it only while the camera looks fine (then the two
+            # disagree). When the camera has failed, or we are coasting, EKF2 is expected to drop it.
             out.append('ekf2: NOT fusing vision')
         if r.ekf is None or not _fresh(now, r.ekf_t, c.other_timeout_s) or not r.ekf_xy_valid:
             out.append('ekf2: no valid position')
@@ -169,7 +170,8 @@ class Fusion:
     def update(self, now, r: Readings, flying: bool) -> Belief:
         """flying: the engine is past WAIT (Offboard has started). Before that, pre-flight rules."""
         b = Belief()
-        cam_bad, ekf_bad = self.camera_problems(now, r), self.ekf_problems(now, r)
+        cam_bad = self.camera_problems(now, r)
+        ekf_bad = self.ekf_problems(now, r, camera_ok=not cam_bad)
         if not self.cfg.require_image and not _fresh(now, r.image_t, self.cfg.other_timeout_s):
             b.notes.append('image: not heard')
         if flying:
