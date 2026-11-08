@@ -9,8 +9,10 @@ in visiting order. This file adds three things on top of it:
    launch heading, so cuVSLAM's origin and axes are the launch pose. contracts/frames.md says
    this transform should be measured, not assumed: `launch_offset` and `rest_height_m` are the
    knobs for a measured correction. Flight height comes from the map (slice_height, 0.8 m above
-   the floor); odom z is measured from the resting body, so z = 0.8 - rest height (0.07 m, field
-   guide) = 0.73 m, the height the square already flies.
+   the floor); odom z is measured from the odom origin, which sits rest_height_m above the floor when
+   the stack starts on the mark: skybeta-11's Pixhawk rests 0.10 m up (team, 2026-11-08; the course
+   follower's odom_origin_height_m). On the taped course, 1.23 m (the window's measured middle) - 0.10
+   = 1.13 m.
 
 2. nearest_wall  distance from a point to the closest wall, net or boulder surface.
 
@@ -34,7 +36,7 @@ class CourseFrame:
     rest_height_m: float       # the body's height above the floor when it sits on the mark
 
     @classmethod
-    def from_map(cls, cmap, rest_height_m=0.07, launch_offset=(0.0, 0.0)):
+    def from_map(cls, cmap, rest_height_m=0.10, launch_offset=(0.0, 0.0)):
         if cmap.launch is None or cmap.launch.heading is None:
             raise ValueError('the map has no launch position and heading: cannot place the drone on it')
         e, n = cmap.launch.position

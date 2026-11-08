@@ -9,7 +9,8 @@ one step to the next.
 Drift handling that runs under every step (not written as steps):
 * PX4 and the camera can disagree about where the drone is. The gap is measured when Offboard
   starts, followed (smoothed over 1 s) all flight, and added to every setpoint. More than 0.3 m
-  apart before take-off: it refuses to fly.
+  apart before take-off: it refuses to fly. In flight the followed gap stays within 0.3 m of its
+  take-off value, so a frozen camera can never walk the setpoints away (added after a real fly-away).
 * A hover's seconds only count once the drone is within 20 cm and 10 deg of its target.
 * Landings pull back over the last fly_to's spot while descending (the take-off spot in the square).
 * A moving target never runs more than 0.3 m ahead of the drone.
@@ -39,6 +40,10 @@ class Config:
     yaw_tol_deg: float = 10.0
     max_offset_m: float = 0.3       # PX4 vs camera position on the ground; more than this: refuse to fly
     offset_tau_s: float = 1.0       # smoothing of the PX4-vs-camera offset in flight
+    max_offset_change_m: float = 0.3  # the followed offset never moves further than this from its
+                                      # value at Offboard (it moved ~0.1 m in the square flights). A
+                                      # frozen camera made it chase PX4 upward without end: the
+                                      # course follower's fly-away to 3.7 m in flight 20261108-113426
 
 
 @dataclass
@@ -104,6 +109,7 @@ class Mission:
         self.stale_since = None
         self.last_t = None
         self.offset = (0.0, 0.0, 0.0)  # PX4 local minus camera, smoothed
+        self.offset0 = (0.0, 0.0, 0.0)  # the same, at Offboard
         self.arc = 0.0               # radians of the circle covered
 
     @property
@@ -135,6 +141,7 @@ class Mission:
             if not offboard:
                 return Command('pose', *self._px4(pose))
             self.start, self.target, self.start_yaw, self.heading = pose, pose, yaw, 0.0
+            self.offset0 = self.offset
             self.state, self.i, self.since, self.last_t = FLY, 0, t, t
         elif armed is False:
             # checked first: PX4 disarming also ends Offboard, and the kit can still report it active
@@ -162,6 +169,11 @@ class Mission:
             # the air); 1 s smoothing; both inputs measure the same drone, so this is not a control loop
             a = min(1.0, dt / c.offset_tau_s)
             self.offset = tuple(o + a * (p - q - o) for o, p, q in zip(self.offset, px4, pose))
+            change = tuple(o - o0 for o, o0 in zip(self.offset, self.offset0))
+            size = math.hypot(*change)
+            if size > c.max_offset_change_m:          # hold it at the limit
+                k = c.max_offset_change_m / size
+                self.offset = tuple(o0 + d * k for o0, d in zip(self.offset0, change))
 
         st = self.steps[self.i]
         kind, offset, secs, heading = st.kind, st.at, st.seconds, st.facing

@@ -3,7 +3,8 @@
 Every 1 s, one line: the drone's position in course (east, north) metres, the next checkpoint and
 its distance, the nearest wall, and the checkpoints passed so far. Also on /simplest_map_drone/status.
 
-The map is a parameter (`map`); the default is maps/course_v3_step.yaml in this package.
+The map is a parameter (`map`); the default is maps/course_arena_2026-11-08_flown.yaml in this package
+(the course as taped, corrected by what the team's flights hit).
 Setup rule (course.py): power the drone on ON the launch mark, FACING the launch heading.
 """
 import json
@@ -21,14 +22,14 @@ from simplest_map_drone.course import CourseFrame, Progress, nearest_wall
 
 
 def default_map():
-    return os.path.join(get_package_share_directory('simplest_map_drone'), 'maps', 'course_v3_step.yaml')
+    return os.path.join(get_package_share_directory('simplest_map_drone'), 'maps', 'course_arena_2026-11-08_flown.yaml')
 
 
 class SimplestMapDrone(Node):
     def __init__(self):
         super().__init__('simplest_map_drone')
         self.declare_parameter('map', '')                  # empty: the packaged default
-        self.declare_parameter('rest_height_m', 0.07)
+        self.declare_parameter('rest_height_m', 0.10)
         path = self.get_parameter('map').value or default_map()
         self.cmap = load_map(path)
         self.frame = CourseFrame.from_map(self.cmap, float(self.get_parameter('rest_height_m').value))

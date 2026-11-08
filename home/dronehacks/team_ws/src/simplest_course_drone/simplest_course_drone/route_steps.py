@@ -7,9 +7,14 @@
 The rules for writing the lines, all of them about the drone, none about this course:
 
     1. rise straight up to flight height, then hover 2 s facing the launch heading
-    2. at each corner: if the next leg turns more than TURN_DEG, hover first and turn to face it,
-       so the camera looks down the next corridor, not at the wall ahead (field guide: facing a wall
-       up close starves the tracker). Then fly_to the corner after it.
+    2. at each corner, turn the nose to face the next leg ONLY if the turn is over TURN_DEG and the
+       corner has TURN_ROOM_M of room; then hover TURN_SETTLE_S. Anywhere else keep the heading and
+       fly the leg sideways or backwards, which PX4 does as easily.
+       Why: on skybeta-11 every yaw leaves the drone drifting 10-18 cm to the left of its new nose,
+       peaking 1-3 s after the turn and taking up to 8 s to come back (docs/flight-findings.md,
+       flight 20261108-013018), and the course's narrow spots leave only a few cm past the props.
+       Facing down the corridor still matters where there is room: a camera staring at a wall up
+       close starves the tracker.
     3. legs longer than MAX_LEG_M are cut into pieces (each step must finish inside the engine's 30 s)
     4. at the end, hover 2 s, land, and keep pressing down until PX4 disarms
 
@@ -18,11 +23,15 @@ there. That is how the course gets flown for real one piece at a time.
 """
 import math
 
+from simplest_map_drone.course import DRONE_EXTENT, nearest_wall
 from simplest_square_drone.steps import fly_to, hover, land, land_and_disarm
 
-TURN_DEG = 15.0        # smaller turns are flown as they come; the nose keeps its heading
-TURN_HOVER_S = 0.5     # the hover's seconds start after the turn is done (engine rule)
-MAX_LEG_M = 3.0        # 3 m at 0.3 m/s is 10 s, well inside the engine's 30 s step timeout
+TURN_DEG = 15.0          # smaller turns are flown as they come; the nose keeps its heading
+POST_YAW_DRIFT_M = 0.18  # worst drift after a 90 deg yaw on skybeta-11 (flight 20261108-013018)
+TURN_ROOM_M = DRONE_EXTENT + POST_YAW_DRIFT_M + 0.04   # 0.50 m: props stay 4 cm off at the worst drift
+TURN_SETTLE_S = 3.0      # covers the drift's peak, 1-3 s after the turn (the hover's seconds start
+                         # once the drone is within 20 cm and 10 deg: engine rule)
+MAX_LEG_M = 3.0          # 3 m at 0.3 m/s is 10 s, well inside the engine's 30 s step timeout
 START_HOVER_S = 2.0
 END_HOVER_S = 2.0
 
@@ -46,24 +55,27 @@ def corners(route, until=None):
     return out
 
 
-def course_steps(route, frame, until=None):
+def room(cmap, east, north):
+    """Metres from the drone's centre to the nearest wall, net or obstacle."""
+    return nearest_wall(cmap, east, north)[0]
+
+
+def course_steps(route, frame, cmap, until=None):
     """A step list for simplest_square_drone's engine (odom metres, from the take-off spot)."""
     z = round(frame.flight_z, 3)
     steps = [fly_to(0.0, 0.0, z), hover(seconds=START_HOVER_S, facing=0)]   # 1. up, settle
-    here, facing = (0.0, 0.0), 0.0
+    here, facing = frame.launch, 0.0                                         # course point, odom deg
     for e, n in corners(route, until):
+        x0, y0 = frame.to_odom(*here)
         x, y = frame.to_odom(e, n)
-        leg = math.dist(here, (x, y))
-        heading = _unwrap_near(math.degrees(math.atan2(y - here[1], x - here[0])), facing)
-        if abs(heading - facing) > TURN_DEG:                                 # 2. face the next leg
+        heading = _unwrap_near(math.degrees(math.atan2(y - y0, x - x0)), facing)
+        if abs(heading - facing) > TURN_DEG and room(cmap, *here) >= TURN_ROOM_M:   # 2. face it
             facing = round(heading, 1)
-            steps.append(hover(seconds=TURN_HOVER_S, facing=facing))
-        pieces = max(1, math.ceil(leg / MAX_LEG_M))                          # 3. short pieces
+            steps.append(hover(seconds=TURN_SETTLE_S, facing=facing))
+        pieces = max(1, math.ceil(math.dist((x0, y0), (x, y)) / MAX_LEG_M))   # 3. short pieces
         for k in range(1, pieces + 1):
-            px = here[0] + (x - here[0]) * k / pieces
-            py = here[1] + (y - here[1]) * k / pieces
-            steps.append(fly_to(round(px, 3), round(py, 3), z))
-        here = (x, y)
+            steps.append(fly_to(round(x0 + (x - x0) * k / pieces, 3), round(y0 + (y - y0) * k / pieces, 3), z))
+        here = (e, n)
     steps += [hover(seconds=END_HOVER_S, facing=facing), land(), land_and_disarm()]   # 4. down
     return steps
 

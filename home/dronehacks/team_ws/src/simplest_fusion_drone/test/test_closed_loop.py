@@ -160,3 +160,31 @@ def test_a_short_blip_only_pauses():
             r.vo_state = 2
     m, log = fly(blip)
     assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
+
+
+def _frozen_at_take_off():
+    """The camera keeps publishing, still 'tracking', but its pose stops changing at take-off
+    (what flight 20261108-113426 recorded: odometry stuck while PX4 climbed to 3.7 m)."""
+    stuck = {}
+    def fault(t, r):
+        if t >= 5.0:
+            stuck.setdefault('pose', r.camera)
+            r.camera = stuck['pose']
+    return fault
+
+
+def test_camera_frozen_at_take_off_is_caught_before_it_climbs():
+    m, log = fly(_frozen_at_take_off(), max_t=60.0)
+    assert m.state == DONE, m.reason
+    assert max(e[4][2] for e in log) < 0.5                  # caught low, never flies away
+    caught = first(log, lambda e: 'height: camera and EKF2' in e[2].words())
+    assert caught and caught[0] < 7.0, caught and caught[0]
+    _holds_then_lands(caught[0], log)
+
+
+def test_engine_alone_bounds_a_frozen_camera():
+    """Even if fusion missed it, the engine's offset limit stops the setpoints walking away."""
+    blind = Config(settle_s=5.0, drift_tol_m=99.0, height_tol_m=99.0)
+    m, log = fly(_frozen_at_take_off(), cfg=blind, max_t=90.0)
+    assert m.state == DONE, m.reason
+    assert max(e[4][2] for e in log) < 0.73 + 0.3 + 0.05

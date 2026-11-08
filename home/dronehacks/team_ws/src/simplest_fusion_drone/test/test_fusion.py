@@ -79,14 +79,24 @@ def test_heading_gate_only_before_take_off():
 def test_drift_since_take_off():
     f = Fusion(Config(settle_s=0.0))
     assert f.update(NOW, good(), flying=False).ready            # baseline offset (0.05, 0)
-    assert f.update(NOW, good(ekf=(1.30, 2.0, 0.75)), flying=True).trusted     # moved 0.25 m: ok
-    b = f.update(NOW, good(ekf=(1.40, 2.0, 0.75)), flying=True)                # moved 0.35 m
-    assert not b.trusted and any(p.startswith('drift: camera and EKF2 moved 0.35 m') for p in b.problems)
+    assert f.update(NOW, good(ekf=(1.20, 2.0, 0.75)), flying=True).trusted     # moved 0.15 m: ok
+    b = f.update(NOW, good(ekf=(1.30, 2.0, 0.75)), flying=True)                # moved 0.25 m
+    assert not b.trusted and any(p.startswith('drift: camera and EKF2 moved 0.25 m') for p in b.problems)
+
+
+def test_height_disagreement_since_take_off():
+    """A camera frozen at take-off keeps saying 0 m while EKF2 (rangefinder) climbs."""
+    f = Fusion(Config(settle_s=0.0))
+    assert f.update(NOW, good(), flying=False).ready            # baseline height gap 0.02 m
+    assert f.update(NOW, good(ekf=(1.05, 2.0, 0.95)), flying=True).trusted     # changed 0.20 m: ok
+    b = f.update(NOW, good(ekf=(1.05, 2.0, 1.05)), flying=True)                # changed 0.30 m
+    assert not b.trusted and any(p.startswith('height: camera and EKF2 moved 0.30 m') for p in b.problems)
 
 
 def test_something_under_us_is_noted_not_acted_on():
     f = Fusion(Config(settle_s=0.0))
-    f.update(NOW, good(camera=(1.0, 2.0, 0.0, 0.3), dist_bottom=0.07), flying=False)   # at rest: below0 -0.07
+    f.update(NOW, good(camera=(1.0, 2.0, 0.0, 0.3), ekf=(1.05, 2.0, 0.02), dist_bottom=0.07),
+             flying=False)                                     # at rest: below0 -0.07
     b = f.update(NOW, good(dist_bottom=0.20), flying=True)    # at 0.73 m the floor should read ~0.80
     assert b.trusted and any(n.startswith('below: something 0.60 m tall') for n in b.notes), b.words()
 
@@ -107,3 +117,30 @@ def test_coast_starts_when_camera_and_ekf2_vision_drop_together():
     assert f.update(NOW, good(), flying=True).trusted                 # one good tick sets the gap
     b = f.update(NOW + 0.05, good(brightness=2.0, vo_state=2, ev_pos=False), flying=True)
     assert b.coasting and b.trusted and b.pose is not None, b.words()
+
+
+def test_a_drift_trip_is_latched_for_the_flight():
+    """After the camera jumps, EKF2 may follow it and close the gap again: stay untrusted."""
+    f = Fusion(Config(settle_s=0.0))
+    assert f.update(NOW, good(), flying=False).ready
+    assert not f.update(NOW, good(ekf=(1.40, 2.0, 0.75)), flying=True).trusted   # 0.35 m apart
+    b = f.update(NOW, good(), flying=True)                                       # back in agreement
+    assert not b.trusted and any('(latched)' in p for p in b.problems), b.words()
+
+
+def test_the_launch_files_pass_the_same_numbers_as_config():
+    """A launch default overrides Config on the drone: they must agree (drift_tol_m once did not)."""
+    import ast
+    import pathlib
+    src = pathlib.Path(__file__).parents[2]
+    for rel, name in [('simplest_fusion_drone/launch/simplest_fusion_drone.launch.py', 'FUSION'),
+                      ('simplest_course_drone/launch/simplest_course_drone.launch.py', 'COURSE')]:
+        tree = ast.parse((src / rel).read_text())
+        pairs = next(ast.literal_eval(n.value) for n in ast.walk(tree)
+                     if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', None) == name)
+        defaults = vars(Config())
+        for key, text in pairs:
+            if key in defaults:
+                want = defaults[key]
+                got = (text == 'true') if isinstance(want, bool) else float(text)
+                assert got == want, (rel, key, text, want)

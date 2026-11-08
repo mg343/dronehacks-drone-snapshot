@@ -38,8 +38,15 @@ from dataclasses import dataclass, field
 class Config:
     pose_timeout_s: float = 0.5        # older camera pose: stale
     other_timeout_s: float = 1.0       # older status / EKF2 / image reading: stale
+    flags_timeout_s: float = 2.5       # PX4 publishes estimator_status_flags at 1 Hz (gaps up to 1.05 s
+                                       # in every recorded flight); 1.0 s raised false alarms mid-flight
     heading_tol_deg: float = 2.0       # field guide: start only when PX4 and vision agree within 2 deg
-    drift_tol_m: float = 0.3           # camera vs EKF2 horizontal, change since take-off
+    drift_tol_m: float = 0.2           # camera vs EKF2 horizontal, change since take-off. Real flights:
+                                       # at most 0.06 m clean (082135, 081345); 0.32 m 2.6 s into the
+                                       # frozen-camera fly-away (113426)
+    height_tol_m: float = 0.25         # camera vs EKF2 height, change since take-off. Real flights: at
+                                       # most 0.15 m clean; 0.31 m at 2.6 s in 113426, where the camera
+                                       # froze at take-off, still "tracking", while PX4 climbed to 3.7 m
     min_texture: float = 0.01          # field guide's guard: under 1% textured pixels is blank
     min_brightness: float = 15.0       # mean of mono8, 0-255: darker than this the camera is blind
     settle_s: float = 30.0             # field guide: 30 s still and trusted before the route starts
@@ -129,12 +136,13 @@ class Fusion:
     def __init__(self, cfg: Config = Config()):
         self.cfg = cfg
         self.trusted_since = None
-        self.offset0 = None            # EKF2 minus camera, horizontal, frozen when the route starts
+        self.offset0 = None            # EKF2 minus camera, 3-D, frozen when the route starts
         self.gap = None                # EKF2 minus camera, 3-D, the latest while both were good
         self.below0 = None             # camera z minus rangefinder at rest, frozen with offset0
         self.coast_since = None
         self.coast_pose = None         # the last pose flown on while coasting
         self.shift = (0.0, 0.0, 0.0)   # added to every camera position (re-anchoring)
+        self.tripped = None            # the drift/height problem that ended trust for this flight
 
     # ---- the two sides ----
     def camera_problems(self, now, r):
@@ -156,7 +164,7 @@ class Fusion:
 
     def ekf_problems(self, now, r, camera_ok=True):
         c, out = self.cfg, []
-        if not _fresh(now, r.flags_t, c.other_timeout_s):
+        if not _fresh(now, r.flags_t, c.flags_timeout_s):
             out.append('ekf2: no status flags')
         elif not r.ev_pos and camera_ok and self.coast_since is None:
             # EKF2 rejecting vision counts against it only while the camera looks fine (then the two
@@ -183,6 +191,12 @@ class Fusion:
 
     def _in_flight(self, now, r, cam_bad, ekf_bad, b):
         c = self.cfg
+        if self.tripped:
+            # latched: in flight 20261108-081345 the camera jumped 37 m at a wall strike and EKF2
+            # followed it 1.8 s later, closing the gap again; a source that jumped is never trusted
+            # again this flight (the engine is already holding, then landing straight down)
+            b.problems += self.tripped
+            return
         if not cam_bad and not ekf_bad:
             if self.coast_since is not None:                  # vision is back: re-anchor
                 jump = _sub(self.coast_pose, _add(r.camera[:3], self.shift))
@@ -191,10 +205,16 @@ class Fusion:
                 self.coast_since = self.coast_pose = None
             cam = _add(r.camera[:3], self.shift)
             gap = _sub(r.ekf, cam)
-            if self.offset0 is not None and math.dist(gap[:2], self.offset0) > c.drift_tol_m:
-                b.problems.append('drift: camera and EKF2 moved {:.2f} m apart'.format(
-                    math.dist(gap[:2], self.offset0)))
-                return
+            if self.offset0 is not None:
+                sideways = math.dist(gap[:2], self.offset0[:2])
+                updown = abs(gap[2] - self.offset0[2])
+                if sideways > c.drift_tol_m:
+                    b.problems.append('drift: camera and EKF2 moved {:.2f} m apart'.format(sideways))
+                if updown > c.height_tol_m:
+                    b.problems.append('height: camera and EKF2 moved {:.2f} m apart (frozen camera?)'.format(updown))
+                if b.problems:
+                    self.tripped = ['{} (latched)'.format(p) for p in b.problems]
+                    return
             self.gap = gap
             b.pose, b.yaw, b.source = cam, r.camera[3], 'camera'
         elif cam_bad and not ekf_bad and self.gap is not None:
@@ -235,7 +255,7 @@ class Fusion:
             return                         # no pose, no stream, no Offboard until it has settled
         cam = _add(r.camera[:3], self.shift)
         self.gap = _sub(r.ekf, cam)
-        self.offset0 = self.gap[:2]
+        self.offset0 = self.gap
         if r.dist_bottom is not None:
             self.below0 = cam[2] - r.dist_bottom
         b.pose, b.yaw, b.source = cam, r.camera[3], 'camera'

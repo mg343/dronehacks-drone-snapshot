@@ -206,3 +206,18 @@ def test_landing_pulls_back_over_the_last_fly_to_not_the_take_off_spot():
     assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
     _, x, y, z, armed, _ = track[-1]
     assert math.hypot(x - (START[0] + 1.0), y - START[1]) < 0.05 and z == 0.0
+
+
+def test_the_followed_offset_never_moves_more_than_0_3_m():
+    """Camera frozen at the take-off spot while PX4's own position keeps climbing: the offset the
+    engine adds to its setpoints is held at 0.3 m from its value at Offboard."""
+    m = Mission(STEPS)
+    pose, px4 = (0.0, 0.0, 0.0), (0.0, 0.0, 0.1)
+    m.step(0.0, pose, 0.0, False, True, True, 0.0, px4)                  # streaming, waiting
+    cmd = m.step(0.05, pose, 0.05, True, True, True, 0.0, px4)           # Offboard: offset (0, 0, 0.1)
+    for k in range(2, 400):
+        t = k * 0.05
+        px4 = (0.0, 0.0, 0.1 + 0.02 * k)                                 # PX4 climbs, camera does not
+        cmd = m.step(t, pose, t, True, False, True, 0.0, px4)
+    assert abs(m.offset[2] - 0.1) <= 0.3 + 1e-9, m.offset
+    assert cmd.z <= 0.3 + 0.1 + 0.3 + 1e-6, cmd                          # target (<= lead) + offset0 + limit

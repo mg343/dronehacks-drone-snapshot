@@ -24,7 +24,9 @@ def walk(points, step=0.02):
 
 def test_launch_is_the_odom_origin_facing_forward():
     assert FRAME.to_odom(*MAP.launch.position) == (0.0, 0.0)
-    assert abs(FRAME.flight_z - 0.73) < 1e-9                       # 0.8 m above the floor, 0.07 m rest
+    assert abs(FRAME.flight_z - 0.70) < 1e-9                       # 0.8 m above the floor, 0.10 m rest
+    taped = load_map(pathlib.Path(__file__).parents[1] / 'maps' / 'course_arena_2026-11-08_flown.yaml')
+    assert abs(CourseFrame.from_map(taped).flight_z - 1.13) < 1e-9  # the window's middle, as flown
     assert FRAME.direction_to_odom_deg(0, 1) == 0.0                 # north = forward (launch faces north)
     assert round(FRAME.direction_to_odom_deg(-1, 0)) == 90          # west = left
     assert round(FRAME.direction_to_odom_deg(1, 0)) == -90          # east = right

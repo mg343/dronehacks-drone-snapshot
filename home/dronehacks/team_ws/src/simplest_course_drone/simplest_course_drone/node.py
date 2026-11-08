@@ -8,10 +8,10 @@ Everything flying is the fusion node, unchanged; this file only supplies the ste
 checkpoint progress (simplest_map_drone.course.Progress) on /simplest_course_drone/progress.
 
 Parameters:
-    map            course map file; empty = simplest_map_drone's maps/course_v3_step.yaml
+    map            course map file; empty = simplest_map_drone's maps/course_arena_2026-11-08_flown.yaml
     until          fly only up to this goal, then land there (e.g. cp2_gate_a, tunnel, gate_b);
                    empty = the whole course to the pad
-    rest_height_m  the body's height above the floor on the launch mark (0.07)
+    rest_height_m  the odom origin's height above the floor on the launch mark (skybeta-11: 0.10)
     allow_windows  let the planner choose the window over Gate B (off: its clearance is unreviewed)
 Setup rule (simplest_map_drone.course): power on ON the launch mark, FACING the launch heading.
 """
@@ -37,7 +37,7 @@ class SimplestCourseDrone(SimplestFusionDrone):
     def make_steps(self, node):
         node.declare_parameter('map', '')
         node.declare_parameter('until', '')
-        node.declare_parameter('rest_height_m', 0.07)
+        node.declare_parameter('rest_height_m', 0.10)
         node.declare_parameter('allow_windows', False)
         path = node.get_parameter('map').value or default_map()
         until = node.get_parameter('until').value or None
@@ -45,7 +45,7 @@ class SimplestCourseDrone(SimplestFusionDrone):
         self.frame = CourseFrame.from_map(self.cmap, float(node.get_parameter('rest_height_m').value))
         config = dataclasses.replace(PlannerConfig(), allow_windows=bool(node.get_parameter('allow_windows').value))
         route = plan(self.cmap, config)
-        steps = course_steps(route, self.frame, until)
+        steps = course_steps(route, self.frame, self.cmap, until)
         self.progress = Progress(self.cmap)
         node.get_logger().info('map {}: route {:.1f} m through {}{}\n{}'.format(
             path, route.length_m, ' > '.join(route.goals), ', until ' + until if until else '', describe(steps)))

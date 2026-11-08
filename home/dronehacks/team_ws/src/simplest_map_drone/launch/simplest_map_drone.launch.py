@@ -11,7 +11,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    args = [DeclareLaunchArgument('map', default_value=''), DeclareLaunchArgument('rest_height_m', default_value='0.07')]
+    args = [DeclareLaunchArgument('map', default_value=''), DeclareLaunchArgument('rest_height_m', default_value='0.10')]
     interface = Node(
         package='skybeta_flight_interface', executable='flight_interface', name='flight_interface',
         output='screen', emulate_tty=True,
