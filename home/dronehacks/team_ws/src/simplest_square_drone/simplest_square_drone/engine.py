@@ -11,7 +11,7 @@ Drift handling that runs under every step (not written as steps):
   starts, followed (smoothed over 1 s) all flight, and added to every setpoint. More than 0.3 m
   apart before take-off: it refuses to fly.
 * A hover's seconds only count once the drone is within 20 cm and 10 deg of its target.
-* Landings pull back over the take-off spot while descending.
+* Landings pull back over the last fly_to's spot while descending (the take-off spot in the square).
 * A moving target never runs more than 0.3 m ahead of the drone.
 
 States: WAIT (stream the current position so the kit can enter Offboard on arm-then-Position),
@@ -168,7 +168,7 @@ class Mission:
         self.reason = 'step {}/{}: {}'.format(self.i + 1, len(self.steps), kind)
         if kind not in ('land', 'disarm') and t - self.since > c.step_timeout_s:
             self._abort('step {} ({}) took over {:.0f} s: landing here'.format(self.i + 1, kind, c.step_timeout_s))
-            self.start = pose
+            self.target = pose                      # land where it is
             kind = 'disarm'
 
         if kind == 'move':
@@ -210,16 +210,17 @@ class Mission:
             if self.dwell_since is None:
                 self.dwell_since = t
             if t - self.dwell_since >= secs:
-                self.target = (self.start[0], self.start[1], pose[2])
+                self.target = (self.target[0], self.target[1], pose[2])   # take off again over the landing spot
                 self._next(t)
             return Command('twist', 0.0, 0.0, -0.3 * c.descent_mps)
-        # land / disarm: the real follower's descent
+        # land / disarm: the real follower's descent, pulling back over the last target (the spot the
+        # last fly_to reached; in the square that is always the take-off spot, as square_circle did)
         if landed:
             if kind == 'land':
                 self._next(t)
             return Command('twist', 0.0, 0.0, -0.3 * c.descent_mps)
-        vx = _clip(c.land_xy_gain * (self.start[0] - pose[0]), c.land_xy_max_mps)
-        vy = _clip(c.land_xy_gain * (self.start[1] - pose[1]), c.land_xy_max_mps)
+        vx = _clip(c.land_xy_gain * (self.target[0] - pose[0]), c.land_xy_max_mps)
+        vy = _clip(c.land_xy_gain * (self.target[1] - pose[1]), c.land_xy_max_mps)
         return Command('twist', vx, vy, -c.descent_mps)
 
     # ------------------------------------------------------------------

@@ -196,3 +196,13 @@ def test_disarm_mid_flight_ends_the_run_at_once():
 def _up(track):
     """Index where the drone first reached the box height."""
     return next(i for i, p in enumerate(track) if p[3] > 0.7)
+
+
+def test_landing_pulls_back_over_the_last_fly_to_not_the_take_off_spot():
+    """A route that ends 1 m forward must land there (on the course: the pad, not the launch mark)."""
+    from simplest_square_drone.steps import fly_to, hover, land, land_and_disarm
+    m = Mission([fly_to(0, 0, H), fly_to(1.0, 0, H), hover(seconds=1, facing=0), land(), land_and_disarm()])
+    track, _ = fly(m)
+    assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
+    _, x, y, z, armed, _ = track[-1]
+    assert math.hypot(x - (START[0] + 1.0), y - START[1]) < 0.05 and z == 0.0

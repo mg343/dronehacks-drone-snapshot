@@ -11,7 +11,7 @@ What each instruction means (engine.py carries them out):
     hover        stay where the last fly_to ended: first turn (slowly, 20 deg/s) to face the given
                  way, then wait until the drone is within 20 cm of that spot and 10 deg of the
                  heading, then stay there this many seconds
-    land         go down at 0.3 m/s, drifting back over the take-off spot, until PX4 says landed
+    land         go down at 0.3 m/s, drifting back over the last fly_to's spot, until PX4 says landed
     rest         sit on the ground with motors idling and pressing down gently (NOT a disarm:
                  only the pilot can re-arm, and PX4 disarms by itself 5 s after landing)
     circle       starting from this spot (fly_to it first), go once round a circle of this diameter
