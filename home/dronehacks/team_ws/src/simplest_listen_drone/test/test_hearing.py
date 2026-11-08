@@ -46,3 +46,17 @@ def test_short_keeps_lines_short():
 def test_every_topic_is_listed_once_with_a_note():
     names = [t for t, _ in TOPICS]
     assert len(names) == len(set(names)) and all(n.startswith('/') and note for n, note in TOPICS)
+
+
+def test_the_subset_is_what_is_left_uncommented():
+    """The reasoning's final line, the RELEVANT constant and the live TOPICS lines all agree."""
+    import ast
+    import pathlib
+    import re
+    from simplest_listen_drone import subscriptions
+    src = (pathlib.Path(subscriptions.__file__)).read_text()
+    doc_line = re.search(r'^RELEVANT = (\[.*\])$', subscriptions.__doc__, re.M).group(1)
+    assert ast.literal_eval(doc_line) == subscriptions.RELEVANT
+    assert sorted(t for t, _ in TOPICS) == sorted(subscriptions.RELEVANT)
+    assert subscriptions.CATCH_ALL is False
+    assert src.count("    # ('/") > 25              # the dropped lines are still there, commented
