@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>simplest_listen_drone</name>
+  <version>0.1.0</version>
+  <description>Listens to every topic on the drone and reports rates and contents, plus a plain line from the camera and PX4. Publishes nothing.</description>
+  <maintainer email="linchenyoung1126@gmail.com">TheSleepyPP</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <!-- message types are loaded from the live graph; these are the ones the drone publishes -->
+  <exec_depend>px4_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>skybeta_flight_interface</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
