@@ -59,6 +59,20 @@ def fly(mission, drop_pose=None, takeover_at=None, max_t=250.0, heading=True, of
     return track, cmds
 
 
+def at(dx, dy, h=0.0):
+    """A step's spot, (forward, left) from the take-off spot along the take-off heading, in the
+    camera's frame: how engine.py places every step."""
+    c, s = math.cos(START_YAW), math.sin(START_YAW)
+    return (START[0] + c * dx - s * dy, START[1] + s * dx + c * dy, h)
+
+
+def in_takeoff_frame(x, y):
+    """The inverse: a camera-frame point as (forward, left) from the take-off spot."""
+    c, s = math.cos(START_YAW), math.sin(START_YAW)
+    dx, dy = x - START[0], y - START[1]
+    return c * dx + s * dy, -s * dx + c * dy
+
+
 def held(track, p, tol=0.12):
     """Longest stretch spent within tol of p, in seconds."""
     best = run = 0.0
@@ -74,8 +88,8 @@ def test_full_sequence():
     assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
     s, h = S, H
     x0, y0, _ = START
-    for dx, dy in [(0, 0), (s, 0), (s, s), (0, s)]:          # x forward, y left
-        assert held(track, (x0 + dx, y0 + dy, h)) >= HOLD - 0.1, (dx, dy)
+    for dx, dy in [(0, 0), (s, 0), (s, s), (0, s)]:          # forward, left of the take-off heading
+        assert held(track, at(dx, dy, h)) >= HOLD - 0.1, (dx, dy)
     touchdowns = sum(1 for a, b in zip(track, track[1:]) if a[3] > 1e-6 and b[3] <= 1e-6)
     assert touchdowns == 2
     first_down = next(i for i, p in enumerate(track) if i and p[3] <= 1e-6 and track[i - 1][3] > 1e-6)
@@ -85,11 +99,11 @@ def test_full_sequence():
     assert not armed and z == 0.0 and math.hypot(x - x0, y - y0) < 0.05
     assert abs(_wrap(yaw - START_YAW)) < math.radians(5)         # faces its take-off heading again
     r = next(st.diameter for st in STEPS if st.kind == 'circle') / 2
-    assert all(x0 - 0.1 <= p[1] <= x0 + max(s, 2 * r) + 0.1 and y0 - 0.1 <= p[2] <= y0 + max(s, 2 * r) + 0.1
-               for p in track)
+    box = [in_takeoff_frame(p[1], p[2]) for p in track]
+    assert all(-0.1 <= f <= max(s, 2 * r) + 0.1 and -0.1 <= l <= max(s, 2 * r) + 0.1 for f, l in box)
     second = track[first_down:]                              # the circle inside the box: its four sides
     for dx, dy in [(r, 0), (2 * r, r), (r, 2 * r), (0, r)]:
-        assert min(math.dist(p[1:4], (x0 + dx, y0 + dy, h)) for p in second) < 0.05, (dx, dy)
+        assert min(math.dist(p[1:4], at(dx, dy, h)) for p in second) < 0.05, (dx, dy)
 
 
 def test_ground_rest_longer_than_auto_disarm_ends_after_first_landing():
@@ -125,11 +139,10 @@ def test_turns_slowly_to_face_each_leg():
     m = Mission(STEPS)
     track, cmds = fly(m)
     s, h = S, H
-    x0, y0, _ = START
     # at each corner, the heading it settles on before moving on: left turns of 90 deg
     for (dx, dy), turn in [((s, 0), 90), ((s, s), 180), ((0, s), 270)]:
         box = track[:next(i for i, p in enumerate(track) if i > _up(track) and p[3] < 0.12)]    # before the circle
-        here = [p for p in box if math.dist(p[1:4], (x0 + dx, y0 + dy, h)) < 0.03]
+        here = [p for p in box if math.dist(p[1:4], at(dx, dy, h)) < 0.03]
         assert abs(_wrap(here[-1][5] - START_YAW - math.radians(turn))) < math.radians(5), (dx, dy)
     yaws = [(t, c.yaw) for t, c in cmds if c.kind == 'pose' and c.yaw is not None and t > 1.1]
     for (t0, a), (t1, b) in zip(yaws, yaws[1:]):
@@ -149,9 +162,8 @@ def test_px4_frame_offset_is_corrected():
         m = Mission(STEPS)
         track, _ = fly(m, off=off)
         assert m.state == DONE and m.reason == 'disarmed on the ground', (off, m.reason)
-        x0, y0, _ = START
         for dx, dy in [(0, 0), (S, 0), (S, S), (0, S)]:
-            assert held(track, (x0 + dx, y0 + dy, H)) >= HOLD - 0.1, (off, dx, dy)
+            assert held(track, at(dx, dy, H)) >= HOLD - 0.1, (off, dx, dy)
 
 
 def test_large_px4_offset_refuses_to_fly():
@@ -186,6 +198,16 @@ def test_offset_that_changes_after_takeoff_is_followed():
         assert held(track, (x0 + dx, y0 + dy, H), tol=0.05) >= HOLD - 0.1, (dx, dy)
 
 
+def test_a_stale_offboard_flag_while_disarmed_does_not_start_a_flight():
+    """Just after a disarm the kit can still report Offboard active; the next flight's fresh Mission
+    keeps waiting (and streaming) until PX4 is armed again."""
+    m = Mission(STEPS)
+    assert m.step(0.0, (0, 0, 0), 0.0, True, True, False).kind == 'pose'
+    assert m.state == 'WAIT' and m.start is None
+    m.step(0.05, (0, 0, 0), 0.05, True, True, True)
+    assert m.state == 'FLY'
+
+
 def test_disarm_mid_flight_ends_the_run_at_once():
     m = Mission(STEPS)
     fly(m, max_t=10.0)
@@ -205,7 +227,7 @@ def test_landing_pulls_back_over_the_last_fly_to_not_the_take_off_spot():
     track, _ = fly(m)
     assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
     _, x, y, z, armed, _ = track[-1]
-    assert math.hypot(x - (START[0] + 1.0), y - START[1]) < 0.05 and z == 0.0
+    assert math.dist((x, y), at(1.0, 0)[:2]) < 0.05 and z == 0.0      # 1 m along the take-off heading
 
 
 def test_the_followed_offset_never_moves_more_than_0_3_m():

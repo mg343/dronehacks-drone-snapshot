@@ -13,7 +13,7 @@ Parameters:
                    empty = the whole course to the pad
     rest_height_m  the odom origin's height above the floor on the launch mark (skybeta-11: 0.10)
     allow_windows  let the planner choose the window over Gate B (off: its clearance is unreviewed)
-Setup rule (course.py): power on ON the launch mark, FACING the launch heading.
+Setup rule (course.py): arm it sitting ON the launch mark, FACING the launch heading.
 """
 import dataclasses
 import math

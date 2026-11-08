@@ -67,7 +67,9 @@ def test_clean_run_settles_then_flies_the_whole_square_and_circle():
     assert 5.0 <= takeoff[0] < 5.2                        # nothing streamed during the 5 s settle
     assert all(e[3].kind == 'none' for e in log if e[0] < 4.9)
     assert max(e[4][2] for e in log) > 0.7
-    assert max(e[4][0] for e in log) > 0.95 and max(e[4][1] for e in log) > 0.95   # the 1 m box
+    c, s = math.cos(START_YAW), math.sin(START_YAW)                 # the box is along the take-off heading
+    box = [(c * e[4][0] + s * e[4][1], -s * e[4][0] + c * e[4][1]) for e in log]
+    assert max(f for f, l in box) > 0.95 and max(l for f, l in box) > 0.95          # the 1 m box
     reasons = [e[5] for e in log]
     assert all('step {}/20'.format(i) in ' '.join(reasons) for i in range(1, 21))   # every step, in turn
     assert not any('took over' in r or 'pose' in r for r in reasons)               # no timeout or hold

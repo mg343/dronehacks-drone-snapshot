@@ -5,12 +5,14 @@ gate and group fields): walls and the net as thick line segments, boulders as di
 in visiting order. This file adds three things on top of it:
 
 1. CourseFrame  course (east, north) <-> the drone's odom frame (forward, left, up).
-   Setup rule this relies on: the drone powers on ON the map's launch mark, FACING the map's
-   launch heading, so cuVSLAM's origin and axes are the launch pose. contracts/frames.md says
+   Setup rule this relies on: the drone is ARMED sitting on the map's launch mark, FACING the map's
+   launch heading. Every step is measured from that take-off pose (engine.py), so where the stack
+   started and how cuVSLAM's axes lie do not matter, and flights follow each other without a
+   restart: carry it back to the mark, face it, arm. contracts/frames.md says
    this transform should be measured, not assumed: `launch_offset` and `rest_height_m` are the
    knobs for a measured correction. Flight height comes from the map (slice_height, 0.8 m above
-   the floor); odom z is measured from the odom origin, which sits rest_height_m above the floor when
-   the stack starts on the mark: skybeta-11's Pixhawk rests 0.10 m up (team, 2026-11-08; the course
+   the floor); step heights are measured from the take-off pose, which sits rest_height_m above the
+   floor: skybeta-11's Pixhawk rests 0.10 m up (team, 2026-11-08; the course
    follower's odom_origin_height_m). On the taped course, 1.23 m (the window's measured middle) - 0.10
    = 1.13 m.
 

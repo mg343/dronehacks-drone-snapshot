@@ -1,7 +1,7 @@
 """The whole flight, one instruction per line. Read it top to bottom.
 
 Where:   metres from the take-off spot.
-         forward = the way the nose pointed when the drone powered on
+         forward = the way the nose pointed at take-off (when PX4 entered Offboard)
          left    = 90 degrees to the left of that
          up      = height above the take-off spot
 Facing:  degrees turned LEFT from the take-off heading (90 = a quarter turn left).

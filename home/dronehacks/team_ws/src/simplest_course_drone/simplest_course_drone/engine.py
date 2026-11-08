@@ -144,7 +144,9 @@ class Mission:
                                'drifted; restart the stack on the mark').format(abs(self.offset[2]))
                 return NONE          # no stream: no Offboard, the pilot keeps Position
             self.reason = 'waiting for arm, then Position'
-            if not offboard:
+            if not offboard or armed is False:
+                # disarmed: PX4 disarming ends Offboard, but the kit can report it active for a moment,
+                # and a fresh Mission (the next flight) must not start on that stale flag
                 return Command('pose', *self._px4(pose))
             self.start, self.target, self.start_yaw, self.heading = pose, pose, yaw, 0.0
             self.offset0 = self.offset
