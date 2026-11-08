@@ -46,8 +46,12 @@ def test_every_leg_is_short():
             assert math.dist(here, s.at[:2]) <= MAX_LEG_M + 1e-6
 
 
-def test_the_nose_turns_only_where_there_is_room_and_then_settles():
-    turns = [(s, here) for s, here in walk(STEPS)[2:-3] if s.kind == 'hold']
+def test_by_default_the_nose_keeps_the_launch_heading():
+    assert [s.facing for s in STEPS if s.kind == 'hold'] == [0, 0]   # the start and end hovers only
+
+
+def test_with_turns_the_nose_turns_only_where_there_is_room_and_then_settles():
+    turns = [(s, here) for s, here in walk(course_steps(ROUTE, FRAME, MAP, turns=True))[2:-3] if s.kind == 'hold']
     assert turns                                             # it does turn where it can (camera view)
     for s, here in turns:
         assert s.seconds == TURN_SETTLE_S
@@ -59,7 +63,7 @@ def test_no_turn_at_a_narrow_corner():
     narrow = {tuple(round(v, 3) for v in FRAME.to_odom(*w.position))
               for w in ROUTE.waypoints[1:-1] if room(MAP, *w.position) < TURN_ROOM_M}
     assert narrow
-    for s, here in walk(STEPS)[2:-3]:
+    for s, here in walk(course_steps(ROUTE, FRAME, MAP, turns=True))[2:-3]:
         assert not (s.kind == 'hold' and tuple(round(v, 3) for v in here) in narrow), here
 
 

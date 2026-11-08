@@ -21,7 +21,7 @@ with only the import lines changed, so this package can be built on its own.
 | File | What it does | Copied from |
 |---|---|---|
 | `node.py` | the node: map, route, steps, checkpoint progress | (this package) |
-| `route_steps.py` | the route as steps; turns only where there is room | (this package) |
+| `route_steps.py` | the route as steps; the nose keeps the launch heading (`turns:=true`: turns where there is room) | (this package) |
 | `fusion_node.py` | subscriptions, the trust gate, publishing setpoints | `simplest_fusion_drone/node.py` |
 | `fusion.py`, `image.py` | "where am I, can I trust it?"; image brightness/texture | `simplest_fusion_drone` |
 | `engine.py`, `steps.py` | the flight-tested step engine; the step vocabulary (and the square) | `simplest_square_drone` |

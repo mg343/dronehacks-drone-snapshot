@@ -7,14 +7,17 @@
 The rules for writing the lines, all of them about the drone, none about this course:
 
     1. rise straight up to flight height, then hover 2 s facing the launch heading
-    2. at each corner, turn the nose to face the next leg ONLY if the turn is over TURN_DEG and the
-       corner has TURN_ROOM_M of room; then hover TURN_SETTLE_S. Anywhere else keep the heading and
-       fly the leg sideways or backwards, which PX4 does as easily.
-       Why: on skybeta-11 every yaw leaves the drone drifting 10-18 cm to the left of its new nose,
-       peaking 1-3 s after the turn and taking up to 8 s to come back (docs/flight-findings.md,
-       flight 20261108-013018), and the course's narrow spots leave only a few cm past the props.
-       Facing down the corridor still matters where there is room: a camera staring at a wall up
-       close starves the tracker.
+    2. keep that heading the whole way (the default, turns=False): every leg is flown forwards,
+       sideways or backwards, which PX4 does as easily, and the nose never yaws.
+       Why: skybeta-11 carries a steady push fixed to its airframe, and PX4's integrator holds the
+       correction in world axes, so every yaw leaves it pointing the wrong way until relearned
+       (docs/flight-findings.md). The slide after a 90 deg yaw was 10-18 cm in flight
+       20261108-013018 (push 0.10 m/s^2) but the push was 0.25 m/s^2 in 003042, which predicts
+       25-35 cm, against a few cm of room past the props at the course's narrow spots. A hold without
+       a yaw stayed within 7 cm. No yaw, no slide, whatever the push is that day.
+       turns=True instead turns the nose to face the next leg where the turn is over TURN_DEG and the
+       corner has TURN_ROOM_M of room, then hovers TURN_SETTLE_S: a better camera view down the
+       corridors, sized for the 18 cm slide only.
     3. legs longer than MAX_LEG_M are cut into pieces (each step must finish inside the engine's 30 s)
     4. at the end, hover 2 s, land, and keep pressing down until PX4 disarms
 
@@ -60,8 +63,8 @@ def room(cmap, east, north):
     return nearest_wall(cmap, east, north)[0]
 
 
-def course_steps(route, frame, cmap, until=None):
-    """A step list for engine.py (odom metres, from the take-off spot)."""
+def course_steps(route, frame, cmap, until=None, turns=False):
+    """A step list for engine.py (odom metres, from the take-off spot). turns: rule 2."""
     z = round(frame.flight_z, 3)
     steps = [fly_to(0.0, 0.0, z), hover(seconds=START_HOVER_S, facing=0)]   # 1. up, settle
     here, facing = frame.launch, 0.0                                         # course point, odom deg
@@ -69,7 +72,7 @@ def course_steps(route, frame, cmap, until=None):
         x0, y0 = frame.to_odom(*here)
         x, y = frame.to_odom(e, n)
         heading = _unwrap_near(math.degrees(math.atan2(y - y0, x - x0)), facing)
-        if abs(heading - facing) > TURN_DEG and room(cmap, *here) >= TURN_ROOM_M:   # 2. face it
+        if turns and abs(heading - facing) > TURN_DEG and room(cmap, *here) >= TURN_ROOM_M:   # 2.
             facing = round(heading, 1)
             steps.append(hover(seconds=TURN_SETTLE_S, facing=facing))
         pieces = max(1, math.ceil(math.dist((x0, y0), (x, y)) / MAX_LEG_M))   # 3. short pieces

@@ -15,7 +15,7 @@ INTERFACE = [  # the kit example's own defaults
     ('setpoint_rate_hz', '10.0'), ('allow_mode_request', 'false'), ('auto_offboard_on_arm', 'true'),
     ('odometry_topic', '/visual_slam/tracking/odometry'),
 ]
-COURSE = [('map', ''), ('until', ''), ('rest_height_m', '0.10'), ('allow_windows', 'false'),
+COURSE = [('map', ''), ('until', ''), ('rest_height_m', '0.10'), ('allow_windows', 'false'), ('turns', 'false'),
           ('settle_s', '30.0'), ('heading_tol_deg', '2.0'), ('drift_tol_m', '0.2'), ('height_tol_m', '0.25'), ('flags_timeout_s', '2.5'), ('coast_s', '6.0')]
 
 

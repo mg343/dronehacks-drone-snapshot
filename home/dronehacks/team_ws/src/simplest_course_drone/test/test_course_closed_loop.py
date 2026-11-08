@@ -13,7 +13,8 @@ PX4's tracking. Sensors read the truth unless a test spoils them. The referee is
 Progress, fed the true position, and the nearest wall along the way.
 
 What this can show: the steps, the trust gate and the engine work together on this map's geometry,
-and the turn rule keeps the measured post-yaw drift off the walls.
+and flying at a fixed heading takes the post-yaw drift out of play (turns=True: the turn rule keeps
+the drift measured on a good day off the walls).
 What it cannot: the real drone's full dynamics, latency, the real tunnel, how far the real course
 sits from the map (two real strikes happened where the taped map was empty).
 """
@@ -48,7 +49,7 @@ def push_shape(s):
 
 
 def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0),
-        cam_turn_deg=0.0, cam_shift=(0.0, 0.0, 0.0), px4_shift=(0.0, 0.0, 0.0)):
+        cam_turn_deg=0.0, cam_shift=(0.0, 0.0, 0.0), px4_shift=(0.0, 0.0, 0.0), turns=False, push_90=PUSH_90_M):
     """One flight from the launch mark. The truth frame is the launch mark facing the launch heading.
     The camera's frame may be anywhere: turned by cam_turn_deg and shifted by cam_shift (where cuVSLAM
     started, and what it drifted by since). PX4's frame follows the camera's axes (EKF2 fuses vision
@@ -60,13 +61,13 @@ def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0)
     def px4_to_truth(px, py, pz):
         cx, cy, cz = px - px4_shift[0] - cam_shift[0], py - px4_shift[1] - cam_shift[1], pz - px4_shift[2] - cam_shift[2]
         return ct * cx + st * cy, -st * cx + ct * cy, cz
-    steps = course_steps(ROUTE, FRAME, MAP, until)
+    steps = course_steps(ROUTE, FRAME, MAP, until, turns)
     m, f, ref = Mission(steps), Fusion(cfg), Progress(MAP)
     x = y = z = yaw = 0.0                  # where PX4's own tracking puts the drone
     turns, turning_from, last_yaw = [], None, 0.0   # (end time, size m, unit left of new nose)
     armed, offboard, landed_since = True, False, None
     t = 0.0
-    out = {'clearance': math.inf, 'where': None, 'coasted': 0.0, 'start': None, 'path': [], 'top': 0.0}
+    out = {'clearance': math.inf, 'where': None, 'coasted': 0.0, 'start': None, 'path': [], 'top': 0.0, 'yawed': 0.0}
     while t < max_t and m.state != DONE:
         t += DT
         dx = dy = 0.0                      # the airframe push on top of PX4's tracking
@@ -113,9 +114,10 @@ def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0)
         elif not moving and turning_from is not None:
             dpsi = yaw - turning_from
             if abs(dpsi) > math.radians(5):
-                size = PUSH_90_M * abs(math.sin(dpsi / 2)) / math.sin(math.radians(45))
+                size = push_90 * abs(math.sin(dpsi / 2)) / math.sin(math.radians(45))
                 turns.append((t, size, (-math.sin(yaw), math.cos(yaw))))   # left of the new nose (odom)
             turning_from = None
+        out['yawed'] += abs(yaw - last_yaw)
         last_yaw = yaw
         e, n = FRAME.to_course(x + dx, y + dy)
         ref.update(e, n, landed=z <= 1e-6, armed=armed)
@@ -138,10 +140,27 @@ def test_the_whole_course_every_checkpoint_in_order_no_prop_touches():
     assert not any('took over' in p[4] or 'pose' in p[4] for p in out['path'])
 
 
+def test_the_nose_never_yaws_so_a_stronger_push_changes_nothing():
+    """003042's push (0.25 m/s^2) predicts 25-35 cm of slide per 90 deg yaw, twice 013018's. With
+    the nose held at the launch heading there is no yaw, so the flight is the same at any push."""
+    runs = [fly(push_90=p) for p in (PUSH_90_M, 0.35, 0.6)]
+    for m, ref, out in runs:
+        assert ref.passed == ALL and out['yawed'] < math.radians(1), out['yawed']
+        assert out['clearance'] > DRONE_EXTENT + 0.02 and out['time'] < 180.0
+    assert len({round(out['clearance'], 6) for _, _, out in runs}) == 1
+
+
+def test_the_turn_rule_clears_the_good_day_drift():
+    """turns=True, the option for a better camera view: fine at 013018's 18 cm."""
+    m, ref, out = fly(turns=True)
+    assert m.state == DONE and ref.passed == ALL, (m.reason, ref.passed)
+    assert out['clearance'] > DRONE_EXTENT + 0.02, out['clearance']
+
+
 def test_turning_at_every_corner_would_put_a_prop_on_a_wall(monkeypatch):
-    """The old rule (face every leg) against the same measured drift: why the turn rule exists."""
+    """The old rule (face every leg) against the same measured drift: why the nose stays put."""
     monkeypatch.setattr(route_steps, 'TURN_ROOM_M', 0.0)
-    m, ref, out = fly()
+    m, ref, out = fly(turns=True)
     assert out['clearance'] < DRONE_EXTENT, (out['clearance'], out['where'])
 
 

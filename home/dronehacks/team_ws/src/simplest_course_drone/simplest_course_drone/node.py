@@ -13,6 +13,8 @@ Parameters:
                    empty = the whole course to the pad
     rest_height_m  the odom origin's height above the floor on the launch mark (skybeta-11: 0.10)
     allow_windows  let the planner choose the window over Gate B (off: its clearance is unreviewed)
+    turns          turn the nose down the corridors where there is room (off: the nose keeps the
+                   launch heading the whole way, so PX4's post-yaw slide never happens; route_steps.py)
 Setup rule (course.py): arm it sitting ON the launch mark, FACING the launch heading.
 """
 import dataclasses
@@ -46,13 +48,14 @@ class SimplestCourseDrone(SimplestFusionDrone):
         node.declare_parameter('until', '')
         node.declare_parameter('rest_height_m', 0.10)
         node.declare_parameter('allow_windows', False)
+        node.declare_parameter('turns', False)
         path = node.get_parameter('map').value or default_map()
         until = node.get_parameter('until').value or None
         self.cmap = load_map(path)
         self.frame = CourseFrame.from_map(self.cmap, float(node.get_parameter('rest_height_m').value))
         config = dataclasses.replace(PlannerConfig(), allow_windows=bool(node.get_parameter('allow_windows').value))
         route = plan(self.cmap, config)
-        steps = course_steps(route, self.frame, self.cmap, until)
+        steps = course_steps(route, self.frame, self.cmap, until, bool(node.get_parameter('turns').value))
         self.progress = Progress(self.cmap)
         node.get_logger().info('map {}: route {:.1f} m through {}{}\n{}'.format(
             path, route.length_m, ' > '.join(route.goals), ', until ' + until if until else '', describe(steps)))
