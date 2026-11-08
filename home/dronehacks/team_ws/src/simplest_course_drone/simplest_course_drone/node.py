@@ -1,31 +1,37 @@
 """Fly the course from the map: the planner writes the step list, fusion and the engine fly it.
 
-    map --dronehacks_planner--> route --route_steps--> fly_to / hover / land lines
-        --simplest_fusion_drone's node (trust gate + tunnel coast)--> simplest_square_drone's engine
+    map --planner/--> route --route_steps.py--> fly_to / hover / land lines
+        --fusion_node.py (trust gate + tunnel coast)--> engine.py
         --> /skybeta/setpoint/* --> the kit --> PX4
 
 Everything flying is the fusion node, unchanged; this file only supplies the steps and reports
-checkpoint progress (simplest_map_drone.course.Progress) on /simplest_course_drone/progress.
+checkpoint progress (course.Progress) on /simplest_course_drone/progress.
 
 Parameters:
-    map            course map file; empty = simplest_map_drone's maps/course_arena_2026-11-08_flown.yaml
+    map            course map file; empty = this package's maps/course_arena_2026-11-08_flown.yaml
     until          fly only up to this goal, then land there (e.g. cp2_gate_a, tunnel, gate_b);
                    empty = the whole course to the pad
     rest_height_m  the odom origin's height above the floor on the launch mark (skybeta-11: 0.10)
     allow_windows  let the planner choose the window over Gate B (off: its clearance is unreviewed)
-Setup rule (simplest_map_drone.course): power on ON the launch mark, FACING the launch heading.
+Setup rule (course.py): power on ON the launch mark, FACING the launch heading.
 """
 import dataclasses
+import os
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from std_msgs.msg import String
 
-from dronehacks_planner.course_map import load_map
-from dronehacks_planner.route import PlannerConfig, plan
+from simplest_course_drone.planner.course_map import load_map
+from simplest_course_drone.planner.route import PlannerConfig, plan
 from simplest_course_drone.route_steps import course_steps, describe
-from simplest_fusion_drone.node import SimplestFusionDrone
-from simplest_map_drone.course import CourseFrame, Progress, nearest_wall
-from simplest_map_drone.node import default_map
+from simplest_course_drone.fusion_node import SimplestFusionDrone
+from simplest_course_drone.course import CourseFrame, Progress, nearest_wall
+
+
+def default_map():
+    return os.path.join(get_package_share_directory('simplest_course_drone'), 'maps',
+                        'course_arena_2026-11-08_flown.yaml')
 
 
 class SimplestCourseDrone(SimplestFusionDrone):

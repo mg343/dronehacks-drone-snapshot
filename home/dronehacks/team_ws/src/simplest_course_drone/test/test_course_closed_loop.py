@@ -1,15 +1,15 @@
 """The whole course, closed loop: planner steps -> fusion -> the real engine -> a crude drone.
 
 The map is the default, the taped course corrected by the team's flights
-(simplest_map_drone/maps/course_arena_2026-11-08_flown.yaml), flown at its 1.23 m (odom 1.13 m).
+(maps/course_arena_2026-11-08_flown.yaml), flown at its 1.23 m (odom 1.13 m).
 
-The drone model is the one simplest_square_drone and simplest_fusion_drone test with (pose tracking
+The drone model is the one test_engine.py and test_fusion_closed_loop.py use (pose tracking
 at 0.6 m/s, the kit's 0.3 m floor, yaw at 60 deg/s, twists followed, auto-disarm 5 s after landing,
 Offboard only once our node streams), plus skybeta-11's measured airframe push: after every yaw of
 dpsi the drone slides to the left of its new nose by up to 0.18 m * sin(dpsi/2) / sin(45 deg),
 peaking 2 s after the turn and under 5 cm by 8 s (docs/flight-findings.md, flight 20261108-013018).
 PX4 does not see that slide as an error (it is its integrator relearning), so it is added on top of
-PX4's tracking. Sensors read the truth unless a test spoils them. The referee is simplest_map_drone's
+PX4's tracking. Sensors read the truth unless a test spoils them. The referee is course.py's
 Progress, fed the true position, and the nearest wall along the way.
 
 What this can show: the steps, the trust gate and the engine work together on this map's geometry,
@@ -21,14 +21,14 @@ import math
 import pathlib
 
 import simplest_course_drone.route_steps as route_steps
-from dronehacks_planner.course_map import load_map
-from dronehacks_planner.route import plan
+from simplest_course_drone.planner.course_map import load_map
+from simplest_course_drone.planner.route import plan
 from simplest_course_drone.route_steps import course_steps
-from simplest_fusion_drone.fusion import Config, Fusion, Readings
-from simplest_map_drone.course import DRONE_EXTENT, CourseFrame, Progress, _along_across, nearest_wall
-from simplest_square_drone.engine import DONE, Mission
+from simplest_course_drone.fusion import Config, Fusion, Readings
+from simplest_course_drone.course import DRONE_EXTENT, CourseFrame, Progress, _along_across, nearest_wall
+from simplest_course_drone.engine import DONE, Mission
 
-MAP = load_map(pathlib.Path(__file__).parents[2] / 'simplest_map_drone' / 'maps' / 'course_arena_2026-11-08_flown.yaml')
+MAP = load_map(pathlib.Path(__file__).parents[1] / 'maps' / 'course_arena_2026-11-08_flown.yaml')
 FRAME = CourseFrame.from_map(MAP)
 ROUTE = plan(MAP)
 TUNNEL = next(g for g in MAP.goals if g.name == 'tunnel')

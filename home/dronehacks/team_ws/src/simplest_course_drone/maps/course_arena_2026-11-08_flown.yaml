@@ -1,0 +1,262 @@
+# course_arena_2026-11-08.yaml (the course as the team taped it), corrected by what skybeta-11 met in flight.
+# Two changes, both data from the team's flights (branch core/flight-iteration), no code:
+#
+# 1. ADDED: something the drone hits just past the tunnel's south mouth, west of the axis.
+#    Two course-follower flights struck at the same spot in the drone's own estimate, 0.46-0.58 m
+#    from anything the taped map draws:
+#      flights/20261108-113021-light-follower, PX4 log 22: flying straight south on x = 2.1, the body
+#        rate rose at (2.12, -0.60), lift dropped, impact (72 m/s^2) at (2.07, -0.77)
+#      flights/20261108-082135-light-follower, bag: hovered safely at (2.27, -0.72), then drifted to
+#        (2.18, -0.81) while yawing and fell from 0.79 m
+#    The obstacle must be within prop reach (0.28 m) of both touches and beyond prop reach of every
+#    point the two drones passed safely; that leaves x 1.91-1.98, y -0.84 to -0.74 (the team's note
+#    on that flight: "hit the wall west of the south mouth"). Below: a full-height disc over that patch.
+#    The positions are where the drone THOUGHT it was, so if the cause is tracker error in the tunnel
+#    rather than a missing wall, the same error brings it back here and the keep-out still holds.
+#    Replace it with the real wall once someone tape-measures what is there.
+#
+# 2. REMOVED: the rock south of the tunnel, (2.8194, -1.07). It sits about 4 in off the east net, out of
+#    the rangefinder's cone over the tunnel's axis, and it is far below the flight height (team,
+#    2026-11-08; Michael Bar On's follower map dropped it in db2c90c for the same reason). Its
+#    rangefinder ring was the only thing closing the way from the tunnel to Gate B round the obstacle.
+origin: [0.0, 0.0]
+slice_height: 1.23
+launch:
+  position: [-2.5146, 0.9144]
+  heading: [0.0, 1.0]
+segments:
+- start: [3.04927, -3.048]
+  end: [3.04927, 3.048]
+  thickness: 0.0
+- start: [3.04927, 3.048]
+  end: [3.048, 3.048]
+  thickness: 0.0
+- start: [3.048, 3.048]
+  end: [3.048, -3.048]
+  thickness: 0.0
+- start: [3.048, -3.048]
+  end: [3.04927, -3.048]
+  thickness: 0.0
+- start: [-3.04927, 3.048]
+  end: [3.04927, 3.048]
+  thickness: 0.0
+- start: [3.04927, 3.048]
+  end: [3.04927, 3.04927]
+  thickness: 0.0
+- start: [3.04927, 3.04927]
+  end: [-3.04927, 3.04927]
+  thickness: 0.0
+- start: [-3.04927, 3.04927]
+  end: [-3.04927, 3.048]
+  thickness: 0.0
+- start: [-3.04927, -3.04927]
+  end: [3.04927, -3.04927]
+  thickness: 0.0
+- start: [3.04927, -3.04927]
+  end: [3.04927, -3.048]
+  thickness: 0.0
+- start: [3.04927, -3.048]
+  end: [-3.04927, -3.048]
+  thickness: 0.0
+- start: [-3.04927, -3.048]
+  end: [-3.04927, -3.04927]
+  thickness: 0.0
+- start: [-3.048, -3.048]
+  end: [-3.048, 3.048]
+  thickness: 0.0
+- start: [-3.048, 3.048]
+  end: [-3.04927, 3.048]
+  thickness: 0.0
+- start: [-3.04927, 3.048]
+  end: [-3.04927, -3.048]
+  thickness: 0.0
+- start: [-3.04927, -3.048]
+  end: [-3.048, -3.048]
+  thickness: 0.0
+- start: [1.65201, -0.3048]
+  end: [1.65201, 1.2192]
+  thickness: 0.0
+- start: [1.65201, 1.2192]
+  end: [1.59091, 1.2192]
+  thickness: 0.0
+- start: [1.59091, 1.2192]
+  end: [1.59091, -0.3048]
+  thickness: 0.0
+- start: [1.59091, -0.3048]
+  end: [1.65201, -0.3048]
+  thickness: 0.0
+- start: [2.97079, -0.3048]
+  end: [2.97079, 1.2192]
+  thickness: 0.0
+- start: [2.97079, 1.2192]
+  end: [3.03189, 1.2192]
+  thickness: 0.0
+- start: [3.03189, 1.2192]
+  end: [3.03189, -0.3048]
+  thickness: 0.0
+- start: [3.03189, -0.3048]
+  end: [2.97079, -0.3048]
+  thickness: 0.0
+- start: [-1.02616, -0.6223]
+  end: [-1.02616, 0.4064]
+  thickness: 0.0
+- start: [-1.02616, 0.4064]
+  end: [-0.92456, 0.4064]
+  thickness: 0.0
+- start: [-0.92456, 0.4064]
+  end: [-0.92456, -0.6223]
+  thickness: 0.0
+- start: [-0.92456, -0.6223]
+  end: [-1.02616, -0.6223]
+  thickness: 0.0
+- start: [-3.048, 0.508]
+  end: [-1.4351, 0.508]
+  thickness: 0.0
+- start: [-1.4351, 0.508]
+  end: [-1.4351, 0.4064]
+  thickness: 0.0
+- start: [-1.4351, 0.4064]
+  end: [-3.048, 0.4064]
+  thickness: 0.0
+- start: [-3.048, 0.4064]
+  end: [-3.048, 0.508]
+  thickness: 0.0
+- start: [-1.4351, 0.508]
+  end: [0.1778, 0.508]
+  thickness: 0.0
+- start: [0.1778, 0.508]
+  end: [0.1778, 0.4064]
+  thickness: 0.0
+- start: [0.1778, 0.4064]
+  end: [-1.4351, 0.4064]
+  thickness: 0.0
+- start: [-1.4351, 0.4064]
+  end: [-1.4351, 0.508]
+  thickness: 0.0
+- start: [0.1778, 0.508]
+  end: [1.5748, 0.508]
+  thickness: 0.0
+- start: [1.5748, 0.508]
+  end: [1.5748, 0.4064]
+  thickness: 0.0
+- start: [1.5748, 0.4064]
+  end: [0.1778, 0.4064]
+  thickness: 0.0
+- start: [0.1778, 0.4064]
+  end: [0.1778, 0.508]
+  thickness: 0.0
+- start: [0.92564, -1.11115]
+  end: [1.47728, 0.40448]
+  thickness: 0.0
+- start: [1.47728, 0.40448]
+  end: [1.57276, 0.36974]
+  thickness: 0.0
+- start: [1.57276, 0.36974]
+  end: [1.02112, -1.14589]
+  thickness: 0.0
+- start: [1.02112, -1.14589]
+  end: [0.92564, -1.11115]
+  thickness: 0.0
+- start: [-0.7945, -3.01234]
+  end: [-0.67505, -2.68415]
+  thickness: 0.0
+- start: [-0.67505, -2.68415]
+  end: [-0.57957, -2.7189]
+  thickness: 0.0
+- start: [-0.57957, -2.7189]
+  end: [-0.69902, -3.04708]
+  thickness: 0.0
+- start: [-0.69902, -3.04708]
+  end: [-0.7945, -3.01234]
+  thickness: 0.0
+- start: [-0.36231, -1.82489]
+  end: [-0.24286, -1.49671]
+  thickness: 0.0
+- start: [-0.24286, -1.49671]
+  end: [-0.14738, -1.53145]
+  thickness: 0.0
+- start: [-0.14738, -1.53145]
+  end: [-0.26683, -1.85964]
+  thickness: 0.0
+- start: [-0.26683, -1.85964]
+  end: [-0.36231, -1.82489]
+  thickness: 0.0
+- start: [-0.24277, -1.4965]
+  end: [0.10907, -0.52984]
+  thickness: 0.0
+- start: [0.10907, -0.52984]
+  end: [0.20455, -0.56458]
+  thickness: 0.0
+- start: [0.20455, -0.56458]
+  end: [-0.14729, -1.53124]
+  thickness: 0.0
+- start: [-0.14729, -1.53124]
+  end: [-0.24277, -1.4965]
+  thickness: 0.0
+- start: [-3.048, 2.54]
+  end: [3.048, 2.54]
+  thickness: 0.0
+- start: [3.048, 2.54]
+  end: [3.048, 2.4384]
+  thickness: 0.0
+- start: [3.048, 2.4384]
+  end: [-3.048, 2.4384]
+  thickness: 0.0
+- start: [-3.048, 2.4384]
+  end: [-3.048, 2.54]
+  thickness: 0.0
+- start: [-1.83583, 0.54069]
+  end: [-0.85083, 1.68069]
+  thickness: 0.0
+- start: [-0.85083, 1.68069]
+  end: [-0.77517, 1.61531]
+  thickness: 0.0
+- start: [-0.77517, 1.61531]
+  end: [-1.76017, 0.47531]
+  thickness: 0.0
+- start: [-1.76017, 0.47531]
+  end: [-1.83583, 0.54069]
+  thickness: 0.0
+boulders:
+- centre: [0.79248, -2.8194]
+  radius: 0.2286
+  height: 0.5334
+- centre: [-2.56032, -2.49936]
+  radius: 0.2286
+  height: 0.5334
+- centre: [-1.34112, -2.7432]
+  radius: 0.2286
+  height: 0.5334
+- centre: [1.95, -0.79]        # flown obstacle west of the tunnel south mouth (no height: full height)
+  radius: 0.05
+goals:
+- name: tunnel
+  shape: oval
+  centre: [2.3114, 0.4572]
+  params:
+    axis: [0.0, -1.0]
+    length: 1.524
+    width: 1.31878
+    height: 1.8161
+- name: window
+  shape: rect
+  centre: [-0.47094, -2.27189]
+  params:
+    axis: [-0.939693, 0.342018]
+    width: 0.9144
+    depth: 0.1016
+    bottom: 0.9144
+    top: 1.5494
+  group: cp4_landing_area
+- name: gate_b
+  shape: gate
+  centre: [-0.40927, -0.58475]
+  params:
+    axis: [0.066179, -0.997808]
+    width: 1.13466
+    depth: 0.1016
+  group: cp4_landing_area
+- name: pad
+  shape: disc
+  centre: [-2.1336, -1.82837]
+  params: {radius: 0.7366}

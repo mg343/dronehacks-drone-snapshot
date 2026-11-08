@@ -4,14 +4,14 @@ import pathlib
 
 import pytest
 
-from dronehacks_planner.course_map import load_map
-from dronehacks_planner.route import plan
+from simplest_course_drone.planner.course_map import load_map
+from simplest_course_drone.planner.route import plan
 from simplest_course_drone.route_steps import (MAX_LEG_M, TURN_ROOM_M, TURN_SETTLE_S, course_steps, describe,
                                                room)
-from simplest_map_drone.course import CourseFrame
-from simplest_square_drone.engine import check_steps
+from simplest_course_drone.course import CourseFrame
+from simplest_course_drone.engine import check_steps
 
-MAPS = pathlib.Path(__file__).parents[2] / 'simplest_map_drone' / 'maps'
+MAPS = pathlib.Path(__file__).parents[1] / 'maps'
 MAP = load_map(MAPS / 'course_arena_2026-11-08_flown.yaml')
 FRAME = CourseFrame.from_map(MAP)
 ROUTE = plan(MAP)

@@ -1,8 +1,8 @@
 """The course as a plain step list, written by the planner instead of by hand. Pure Python, testable.
 
-    course map --dronehacks_planner--> route (corners in course metres)
+    course map --planner/-->           route (corners in course metres)
                --CourseFrame-->        the same corners in odom (forward, left)
-               --this file-->          fly_to / hover / land lines, as in simplest_square_drone/steps.py
+               --this file-->          fly_to / hover / land lines, as in steps.py
 
 The rules for writing the lines, all of them about the drone, none about this course:
 
@@ -23,8 +23,8 @@ there. That is how the course gets flown for real one piece at a time.
 """
 import math
 
-from simplest_map_drone.course import DRONE_EXTENT, nearest_wall
-from simplest_square_drone.steps import fly_to, hover, land, land_and_disarm
+from simplest_course_drone.course import DRONE_EXTENT, nearest_wall
+from simplest_course_drone.steps import fly_to, hover, land, land_and_disarm
 
 TURN_DEG = 15.0          # smaller turns are flown as they come; the nose keeps its heading
 POST_YAW_DRIFT_M = 0.18  # worst drift after a 90 deg yaw on skybeta-11 (flight 20261108-013018)
@@ -61,7 +61,7 @@ def room(cmap, east, north):
 
 
 def course_steps(route, frame, cmap, until=None):
-    """A step list for simplest_square_drone's engine (odom metres, from the take-off spot)."""
+    """A step list for engine.py (odom metres, from the take-off spot)."""
     z = round(frame.flight_z, 3)
     steps = [fly_to(0.0, 0.0, z), hover(seconds=START_HOVER_S, facing=0)]   # 1. up, settle
     here, facing = frame.launch, 0.0                                         # course point, odom deg
