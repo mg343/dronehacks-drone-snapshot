@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>simplest_map_drone</name>
+  <version>0.1.0</version>
+  <description>Where are we on the course: course position, next checkpoint, nearest wall, checkpoints passed. Publishes nothing to the drone.</description>
+  <maintainer email="noreply@example.com">DroneHacks team</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>skybeta_flight_interface</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>dronehacks_planner</exec_depend>
+  <exec_depend>simplest_listen_drone</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
