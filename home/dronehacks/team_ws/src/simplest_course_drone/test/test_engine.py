@@ -221,3 +221,21 @@ def test_the_followed_offset_never_moves_more_than_0_3_m():
         cmd = m.step(t, pose, t, True, False, True, 0.0, px4)
     assert abs(m.offset[2] - 0.1) <= 0.3 + 1e-9, m.offset
     assert cmd.z <= 0.3 + 0.1 + 0.3 + 1e-6, cmd                          # target (<= lead) + offset0 + limit
+
+
+def test_steps_are_measured_from_the_take_off_pose_and_heading():
+    """The camera's origin and axes do not matter: facing 90 deg left at (5, 5), 'forward 1 m' is +y."""
+    m = Mission(STEPS)
+    m.step(0.0, (5.0, 5.0, 0.0), 0.0, False, True, True, math.pi / 2, (5.0, 5.0, 0.1))
+    m.step(0.05, (5.0, 5.0, 0.0), 0.05, True, True, True, math.pi / 2, (5.0, 5.0, 0.1))
+    x, y, z = m._at((1.0, 0.0, 0.5))
+    assert abs(x - 5.0) < 1e-9 and abs(y - 6.0) < 1e-9 and abs(z - 0.5) < 1e-9
+
+
+def test_a_sideways_offset_is_carried_but_a_height_offset_is_refused():
+    m = Mission(STEPS)                                       # PX4's frame 80 m away sideways: fine
+    cmd = m.step(0.0, (0.0, 0.0, 0.0), 0.0, False, True, True, 0.0, (-79.7, 1.9, 0.1))
+    assert cmd.kind == 'pose' and abs(cmd.x + 79.7) < 1e-9   # streamed, in PX4's frame
+    m = Mission(STEPS)                                       # the camera 9 m up on the floor: refused
+    cmd = m.step(0.0, (0.0, 0.0, 9.02), 0.0, False, True, True, 0.0, (0.0, 0.0, 0.06))
+    assert cmd.kind == 'none' and 'heights disagree by 8.96 m' in m.reason

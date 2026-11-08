@@ -16,6 +16,7 @@ Parameters:
 Setup rule (course.py): power on ON the launch mark, FACING the launch heading.
 """
 import dataclasses
+import math
 import os
 
 import rclpy
@@ -57,21 +58,37 @@ class SimplestCourseDrone(SimplestFusionDrone):
             path, route.length_m, ' > '.join(route.goals), ', until ' + until if until else '', describe(steps)))
         return steps
 
+    def next_flight(self):
+        super().next_flight()
+        self.progress = Progress(self.cmap)
+
+    def where(self):
+        """The drone on the course: its pose relative to the take-off pose (the launch mark, facing
+        the launch heading), so the camera's own origin and axes never matter. None if unknown."""
+        b, m = self.belief, self.mission
+        if b is None or b.pose is None:
+            return None
+        if m.start is None:                       # not flown yet: it sits on the launch mark
+            return self.frame.launch
+        yaw = m.start_yaw or 0.0
+        dx, dy = b.pose[0] - m.start[0], b.pose[1] - m.start[1]
+        return self.frame.to_course(math.cos(yaw) * dx + math.sin(yaw) * dy,
+                                    -math.sin(yaw) * dx + math.cos(yaw) * dy)
+
     def tick(self):
         super().tick()
-        b = self.belief
-        if b is not None and b.pose is not None:
-            e, n = self.frame.to_course(b.pose[0], b.pose[1])
-            passed = self.progress.update(e, n, self.landed, self.armed)
+        here = self.where()
+        if here is not None:
+            passed = self.progress.update(here[0], here[1], self.landed, self.armed)
             if passed:
                 self.get_logger().info('PASSED {}'.format(passed))
 
     def report(self):
-        b = self.belief
-        if b is None or b.pose is None:
+        here = self.where()
+        if here is None:
             line = 'progress: no trusted pose | passed: {}'.format(', '.join(self.progress.passed) or 'none')
         else:
-            e, n = self.frame.to_course(b.pose[0], b.pose[1])
+            e, n = here
             d, what = nearest_wall(self.cmap, e, n)
             line = 'course ({:+.2f} E, {:+.2f} N) | {} | nearest: {} {:.2f} m'.format(
                 e, n, self.progress.words(e, n), what, d)

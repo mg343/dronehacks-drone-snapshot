@@ -47,7 +47,19 @@ def push_shape(s):
     return 0.0 if s <= 0 else (s / 2.0) * math.exp(1.0 - s / 2.0)
 
 
-def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0)):
+def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0),
+        cam_turn_deg=0.0, cam_shift=(0.0, 0.0, 0.0), px4_shift=(0.0, 0.0, 0.0)):
+    """One flight from the launch mark. The truth frame is the launch mark facing the launch heading.
+    The camera's frame may be anywhere: turned by cam_turn_deg and shifted by cam_shift (where cuVSLAM
+    started, and what it drifted by since). PX4's frame follows the camera's axes (EKF2 fuses vision
+    yaw) but may be shifted by px4_shift (its own origin, its rangefinder height)."""
+    th = math.radians(cam_turn_deg)
+    ct, st = math.cos(th), math.sin(th)
+    to_cam = lambda px, py, pz: (ct * px - st * py + cam_shift[0], st * px + ct * py + cam_shift[1], pz + cam_shift[2])
+    to_px4 = lambda c: tuple(a + b for a, b in zip(c, px4_shift))
+    def px4_to_truth(px, py, pz):
+        cx, cy, cz = px - px4_shift[0] - cam_shift[0], py - px4_shift[1] - cam_shift[1], pz - px4_shift[2] - cam_shift[2]
+        return ct * cx + st * cy, -st * cx + ct * cy, cz
     steps = course_steps(ROUTE, FRAME, MAP, until)
     m, f, ref = Mission(steps), Fusion(cfg), Progress(MAP)
     x = y = z = yaw = 0.0                  # where PX4's own tracking puts the drone
@@ -70,26 +82,30 @@ def fly(until=None, fault=None, push=True, max_t=500.0, cfg=Config(settle_s=5.0)
                 armed = offboard = False
         else:
             landed_since = None
-        r = Readings(camera=(tx, ty, z, yaw), camera_t=t, vo_state=1, vo_t=t, ekf=(tx, ty, z), ekf_xy_valid=True,
-                     dist_bottom=z + 0.10, ekf_t=t, px4_yaw_enu=yaw, att_t=t, ev_pos=True, ev_yaw=True,
+        cam = to_cam(tx, ty, z)
+        cyaw = yaw + th
+        r = Readings(camera=cam + (cyaw,), camera_t=t, vo_state=1, vo_t=t, ekf=to_px4(cam), ekf_xy_valid=True,
+                     dist_bottom=z + 0.10, ekf_t=t, px4_yaw_enu=cyaw, att_t=t, ev_pos=True, ev_yaw=True,
                      rng_hgt=True, flags_t=t, texture=0.15, brightness=100.0, image_t=t)
         e, n = FRAME.to_course(tx, ty)
         if fault:
             fault(t, r, (e, n, z), m)
         b = f.update(t, r, m.state != 'WAIT')
         out['coasted'] += DT if b.coasting else 0.0
-        cmd = m.step(t, b.pose, t if b.pose else None, offboard, landed, armed, b.yaw, (tx, ty, z))
+        cmd = m.step(t, b.pose, t if b.pose else None, offboard, landed, armed, b.yaw, to_px4(cam))
         if armed and not offboard and cmd.kind == 'pose':
             offboard, out['start'] = True, t
         if offboard and cmd.kind == 'pose':
-            d = [cmd.x - x, cmd.y - y, max(cmd.z, 0.3) - z]                # PX4 chases the setpoint
+            gx, gy, gz = px4_to_truth(cmd.x, cmd.y, cmd.z)                # PX4 flies it in its frame
+            d = [gx - x, gy - y, max(gz, 0.3) - z]
             k = min(1.0, 0.6 * DT / math.sqrt(sum(v * v for v in d))) if any(d) else 0.0
             x, y, z = x + d[0] * k, y + d[1] * k, z + d[2] * k
             if cmd.yaw is not None:
-                err = (cmd.yaw - yaw + math.pi) % (2 * math.pi) - math.pi
+                err = (cmd.yaw - th - yaw + math.pi) % (2 * math.pi) - math.pi
                 yaw += max(-math.radians(60) * DT, min(math.radians(60) * DT, err))
-        elif offboard and cmd.kind == 'twist':
-            x, y, z = x + cmd.x * DT, y + cmd.y * DT, max(0.0, z + cmd.z * DT)
+        elif offboard and cmd.kind == 'twist':                            # a twist is in the camera's axes
+            vx, vy = ct * cmd.x + st * cmd.y, -st * cmd.x + ct * cmd.y
+            x, y, z = x + vx * DT, y + vy * DT, max(0.0, z + cmd.z * DT)
         # a turn ends when the nose stops moving: register its push
         moving = abs(yaw - last_yaw) > math.radians(0.2)
         if moving and turning_from is None:
@@ -161,3 +177,23 @@ def test_flown_one_piece_at_a_time():
         assert ref.passed == passed, (goal, ref.passed)
         _, e, n, z, _ = out['path'][-1]
         assert z == 0.0 and nearest_wall(MAP, e, n)[0] > DRONE_EXTENT, (goal, e, n)
+
+
+def test_the_camera_frame_can_be_anywhere_and_flights_follow_each_other_without_a_restart():
+    """No global localization: the steps are measured from each take-off pose. Flight 1 with the
+    camera's origin where 20261108-114136 found it (-79.7, 1.9) and its axes turned 37 deg, PX4's
+    frame 5 m off the camera's; flight 2 straight after (the node starts a fresh Fusion and Mission
+    once PX4 disarms), the drone carried back to the mark while the tracker drifted again."""
+    first = fly(cam_turn_deg=37.0, cam_shift=(-79.7, 1.9, 0.0), px4_shift=(5.0, -3.0, 0.08))
+    second = fly(cam_turn_deg=41.5, cam_shift=(-78.4, 3.2, 0.05), px4_shift=(5.0, -3.0, 0.08))
+    for m, ref, out in (first, second):
+        assert m.state == DONE and m.reason == 'disarmed on the ground', m.reason
+        assert ref.passed == ALL, ref.passed
+        assert out['clearance'] > DRONE_EXTENT + 0.02, out['clearance']
+
+
+def test_a_tracker_that_drifted_in_height_on_the_ground_is_refused():
+    """20261108-114136: after a tracker error the camera read 9.02 m with the drone on the floor."""
+    m, ref, out = fly(cam_shift=(-79.66, 1.86, 9.02), px4_shift=(0.0, 0.0, -8.96), max_t=40.0)
+    assert m.state == 'WAIT' and out['top'] == 0.0
+    assert 'heights disagree by 8.96 m' in m.reason, m.reason

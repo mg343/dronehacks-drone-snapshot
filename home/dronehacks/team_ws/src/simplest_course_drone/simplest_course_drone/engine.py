@@ -2,14 +2,15 @@
 flight-tested cage test); the only change is that it flies the list in steps.py instead of
 building the plan itself. Pure logic, no ROS, so it can be unit-tested.
 
-Frame: ENU ``odom`` (cuVSLAM's), whose origin and axes are the body's at power-on: x forward,
-y left, z up. Every step's spot is measured from the take-off spot, so errors never add up from
-one step to the next.
+Frame: every step's spot is (forward, left, up) from the take-off spot, along the heading at
+take-off, turned into the camera's ENU ``odom`` frame when the flight starts. So it does not matter
+where cuVSLAM's origin is or which way its axes point (the square flew with them at the take-off
+pose, where this is the same thing), and errors never add up from one step to the next.
 
 Drift handling that runs under every step (not written as steps):
 * PX4 and the camera can disagree about where the drone is. The gap is measured when Offboard
-  starts, followed (smoothed over 1 s) all flight, and added to every setpoint. More than 0.3 m
-  apart before take-off: it refuses to fly. In flight the followed gap stays within 0.3 m of its
+  starts, followed (smoothed over 1 s) all flight, and added to every setpoint. Heights more than
+  0.3 m apart on the ground: it refuses to fly (a steady sideways offset is fine). In flight the followed gap stays within 0.3 m of its
   take-off value, so a frozen camera can never walk the setpoints away (added after a real fly-away).
 * A hover's seconds only count once the drone is within 20 cm and 10 deg of its target.
 * Landings pull back over the last fly_to's spot while descending (the take-off spot in the square).
@@ -17,7 +18,7 @@ Drift handling that runs under every step (not written as steps):
 
 States: WAIT (stream the current position so the kit can enter Offboard on arm-then-Position),
 FLY (working through the steps), DONE (disarmed), STOPPED (Offboard ended early: the pilot has
-it; never tries again).
+it; never tries again). One Mission is one flight: the node starts a new one after PX4 disarms.
 """
 import math
 from dataclasses import dataclass
@@ -38,7 +39,12 @@ class Config:
     stale_land_s: float = 3.0
     yaw_rate_dps: float = 20.0      # slow turn: 90 deg in 4.5 s
     yaw_tol_deg: float = 10.0
-    max_offset_m: float = 0.3       # PX4 vs camera position on the ground; more than this: refuse to fly
+    max_offset_m: float = 0.3       # PX4 vs camera HEIGHT on the ground; more than this: refuse to fly.
+                                    # Height only: the floor is the one reference both share (PX4 takes
+                                    # height from the rangefinder). Sideways there is none, EKF2 follows
+                                    # the camera, so any steady sideways offset is simply carried in the
+                                    # setpoints. In flight 20261108-114136 the camera read 9.02 m on the
+                                    # floor after a tracker error: that is what this refuses.
     offset_tau_s: float = 1.0       # smoothing of the PX4-vs-camera offset in flight
     max_offset_change_m: float = 0.3  # the followed offset never moves further than this from its
                                       # value at Offboard (it moved ~0.1 m in the square flights). A
@@ -133,9 +139,9 @@ class Mission:
             if not fresh:
                 return NONE          # no stream: the kit will not enter Offboard
             self.offset = (0.0, 0.0, 0.0) if px4 is None else tuple(p - o for p, o in zip(px4, pose))
-            if math.hypot(*self.offset) > c.max_offset_m:
-                self.reason = 'PX4 and camera disagree by {:.2f} m: power-cycle on the spot'.format(
-                    math.hypot(*self.offset))
+            if abs(self.offset[2]) > c.max_offset_m:
+                self.reason = ('PX4 and camera heights disagree by {:.2f} m on the ground: the tracker '
+                               'drifted; restart the stack on the mark').format(abs(self.offset[2]))
                 return NONE          # no stream: no Offboard, the pilot keeps Position
             self.reason = 'waiting for arm, then Position'
             if not offboard:
@@ -246,7 +252,14 @@ class Mission:
         return tuple(a + o for a, o in zip(p, self.offset))
 
     def _at(self, offset):
-        return tuple(s + o for s, o in zip(self.start, offset))
+        """A step's spot, (forward, left, up) from the take-off spot along the take-off heading, in
+        the camera's frame. Measured from the take-off pose, not the camera's origin or axes, so it
+        does not matter where the stack started or which way it faced then."""
+        yaw = self.start_yaw or 0.0
+        c, s = math.cos(yaw), math.sin(yaw)
+        return (self.start[0] + c * offset[0] - s * offset[1],
+                self.start[1] + s * offset[0] + c * offset[1],
+                self.start[2] + offset[2])
 
     def _next(self, t):
         self.i, self.since, self.dwell_since, self.arc = self.i + 1, t, None, 0.0

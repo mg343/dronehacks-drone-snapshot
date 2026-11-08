@@ -143,3 +143,12 @@ def test_the_launch_files_pass_the_same_numbers_as_config():
                 want = defaults[key]
                 got = (text == 'true') if isinstance(want, bool) else float(text)
                 assert got == want, (rel, key, text, want)
+
+
+def test_any_gap_is_fine_on_the_ground_but_a_moving_one_restarts_the_settle():
+    f = Fusion(Config(settle_s=5.0))
+    far = dict(ekf=(-78.7, 3.9, 0.75))                                        # PX4 80 m off: fine
+    assert f.update(NOW, good(**far), flying=False).trusted
+    b = f.update(NOW + 1, good(ekf=(-78.4, 3.9, 0.75), camera_t=NOW + 1, vo_t=NOW + 1, ekf_t=NOW + 1,
+                               att_t=NOW + 1, flags_t=NOW + 1, image_t=NOW + 1), flying=False)
+    assert not b.trusted and any(p.startswith('ground: PX4 and camera moved 0.30 m') for p in b.problems)

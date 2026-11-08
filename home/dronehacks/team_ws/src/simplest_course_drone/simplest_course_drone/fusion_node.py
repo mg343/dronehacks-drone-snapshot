@@ -27,7 +27,7 @@ from simplest_course_drone.fusion import (Config, Fusion, Readings, ned_to_enu, 
 from simplest_course_drone.image import from_ros_image, seeing
 from simplest_course_drone.hearing import resolve
 from simplest_course_drone.subscriptions import RELEVANT
-from simplest_course_drone.engine import Config as EngineConfig, Mission
+from simplest_course_drone.engine import DONE, STOPPED, Config as EngineConfig, Mission
 from simplest_course_drone.steps import STEPS
 
 QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT, durability=DurabilityPolicy.VOLATILE)
@@ -44,9 +44,11 @@ class SimplestFusionDrone(Node):
             self.declare_parameter(name, value, ParameterDescriptor(dynamic_typing=True))
             v = self.get_parameter(name).value
             cfg[name] = (str(v).lower() in ('true', '1')) if isinstance(value, bool) else float(v)
-        self.fusion = Fusion(Config(**cfg))
+        self.fusion_cfg = Config(**cfg)
+        self.fusion = Fusion(self.fusion_cfg)
         self.steps = make_steps(self) if make_steps else STEPS
         self.mission = Mission(self.steps, EngineConfig())
+        self.flight = 1
         self.r = Readings()
         self.offboard = False
         self.landed = self.armed = self.px4 = None
@@ -128,9 +130,23 @@ class SimplestFusionDrone(Node):
             self.r.brightness, self.r.texture = seeing(pixels)
             self.r.image_t = self.now()
 
+    # ---- one flight after another, no restart ----
+    def next_flight(self):
+        """A finished flight (landed, or the pilot took over) and PX4 disarmed: start fresh, so the
+        next arm-then-Position flies again without restarting the stack. Restarting it gives the
+        camera a new origin while PX4 keeps its old frame, which is what kept needing power cycles.
+        Nothing here depends on the camera's origin: the steps are measured from each take-off pose."""
+        self.fusion = Fusion(self.fusion_cfg)
+        self.mission = Mission(self.steps, EngineConfig())
+        self.flight += 1
+        self.get_logger().info('flight {}: ready. Put the drone on the launch mark facing the launch '
+                               'heading; it streams once settled; then arm, then Position.'.format(self.flight))
+
     # ---- the rule ----
     def tick(self):
         now = self.now()
+        if self.mission.state in (DONE, STOPPED) and self.armed is False:
+            self.next_flight()
         flying = self.mission.state != 'WAIT'
         b = self.belief = self.fusion.update(now, self.r, flying)
         pose_t = self.r.camera_t if b.pose is not None else None

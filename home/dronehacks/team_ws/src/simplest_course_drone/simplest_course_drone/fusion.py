@@ -50,6 +50,9 @@ class Config:
     min_texture: float = 0.01          # field guide's guard: under 1% textured pixels is blank
     min_brightness: float = 15.0       # mean of mono8, 0-255: darker than this the camera is blind
     settle_s: float = 30.0             # field guide: 30 s still and trusted before the route starts
+    steady_tol_m: float = 0.10         # on the ground the PX4-minus-camera gap must hold within this
+                                       # for the whole settle: any size of gap is fine, a moving one is
+                                       # not (a tracker error jumped the camera 9 m in 20261108-114136)
     obstacle_below_m: float = 0.3      # camera height minus rangefinder: more than this, something is under us
     require_image: bool = False        # True: no image heard counts against trust (off: first form, report only)
     coast_s: float = 6.0               # longest EKF2-only stretch: the 1.5 m tunnel at 0.3 m/s is ~5 s.
@@ -136,6 +139,7 @@ class Fusion:
     def __init__(self, cfg: Config = Config()):
         self.cfg = cfg
         self.trusted_since = None
+        self.settle_gap = None         # EKF2 minus camera when the settle began
         self.offset0 = None            # EKF2 minus camera, 3-D, frozen when the route starts
         self.gap = None                # EKF2 minus camera, 3-D, the latest while both were good
         self.below0 = None             # camera z minus rangefinder at rest, frozen with offset0
@@ -244,6 +248,13 @@ class Fusion:
                     b.problems.append('heading: PX4 and camera {:.1f} deg apart'.format(err))
             else:
                 b.problems.append('heading: no PX4 attitude')
+        if not b.problems:
+            gap = _sub(r.ekf, _add(r.camera[:3], self.shift))
+            if self.trusted_since is None:
+                self.settle_gap = gap
+            elif math.dist(gap, self.settle_gap) > c.steady_tol_m:
+                b.problems.append('ground: PX4 and camera moved {:.2f} m apart while still'.format(
+                    math.dist(gap, self.settle_gap)))
         if b.problems:
             self.trusted_since = None
             return
